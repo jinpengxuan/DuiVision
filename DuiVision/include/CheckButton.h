@@ -1,19 +1,20 @@
 #pragma once
 #include "ControlBase.h"
 
-class CCheckButton : public CControlBaseFont
+class CDuiCheckButton : public CControlBaseFont
 {
-	DUIOBJ_DECLARE_CLASS_NAME(CCheckButton, _T("chkbtn"))
+	DUIOBJ_DECLARE_CLASS_NAME(CDuiCheckButton, _T("chkbtn"))
 public:
-	CCheckButton(HWND hWnd, CDuiObject* pDuiObject);
-	CCheckButton(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc, CString strTitle= TEXT(""), BOOL bIsVisible = TRUE, BOOL bIsDisable = FALSE, BOOL bIsPressDown = FALSE);
-	~CCheckButton(void);
+	CDuiCheckButton(HWND hWnd, CDuiObject* pDuiObject);
+	CDuiCheckButton(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc, CString strTitle= TEXT(""), BOOL bIsVisible = TRUE, BOOL bIsDisable = FALSE, BOOL bIsPressDown = FALSE);
+	~CDuiCheckButton(void);
 
 	BOOL GetCheck();
 	BOOL SetCheck(BOOL bCheck);
 	HRESULT OnAttributeCheck(const CString& strValue, BOOL bLoading);
 
 	void SetTextColor(Color clrText) { m_clrText = clrText; };
+	void SetShowFocus(BOOL bShowFocus);
 
 	virtual BOOL SetControlFocus(BOOL bFocus);
 

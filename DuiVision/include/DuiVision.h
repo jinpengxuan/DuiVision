@@ -19,10 +19,16 @@ using namespace Gdiplus;
 
 #include "duiid.h"
 
-#include "../common/XUnZip.h"
+#define SUPPORT_WKE
+#ifdef _WIN64
+#undef SUPPORT_WKE
+#endif
 
 //////////////////////////////////////////////////////////
-// Task
+//Comm
+#include "../common/XUnZip.h"
+#include "../common/WinDwmWrapper.h"
+#include "../common/LogMgr.h"
 #include "../common/BaseTask.h"
 #include "../common/TaskMgr.h"
 
@@ -62,10 +68,8 @@ using namespace Gdiplus;
 //////////////////////////////////////////////////////////
 //Other
 #include "Area.h"
-#include "Frame.h"
 #include "ImageString.h"
 #include "Rectangle.h"
-#include "Runing.h"
 #include "Scroll.h"
 #include "SelectBox.h"
 #include "DuiSlider.h"
@@ -73,6 +77,7 @@ using namespace Gdiplus;
 //////////////////////////////////////////////////////////
 //Picture
 #include "Picture.h"
+#include "DuiAnimateImg.h"
 
 //////////////////////////////////////////////////////////
 //Progress
@@ -109,6 +114,8 @@ using namespace Gdiplus;
 
 //////////////////////////////////////////////////////////
 //wke
+#ifdef SUPPORT_WKE
 #include "DuiWkeView.h"
+#endif
 
 #endif

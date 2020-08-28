@@ -1,55 +1,84 @@
 #include "StdAfx.h"
 #include "DuiEdit.h"
 
-// 支持修改背景色的编辑控件
-class CBkColorEdit : public CEdit
+// 支持修改背景色和文字颜色的编辑控件
+class CColorEdit : public CEdit
 {
 private:
-	COLORREF m_clrBack;
-	CBrush m_brBack;
+	COLORREF m_clrBack;	// 背景色
+	COLORREF m_clrText;	// 文字颜色
+	CBrush	m_brBack;	// 背景色刷
+	BOOL	m_bTransparent;	// 背景是否透明
 	
 protected:
 	afx_msg HBRUSH CtlColor(CDC* pDC, UINT nCtlColor);
 	DECLARE_MESSAGE_MAP()
 
 public:
-	CBkColorEdit(COLORREF backColor = RGB(255, 255, 255));
-	virtual ~CBkColorEdit();
+	CColorEdit(COLORREF backColor = RGB(255, 255, 255), COLORREF textColor = RGB(255, 255, 255), BOOL bTransparent = FALSE);
+	virtual ~CColorEdit();
 	void SetBackColor(COLORREF color);
 	COLORREF GetBackColor();
+	void SetTransparent(BOOL bTransparent);
+	void SetTextColor(COLORREF color);
+	COLORREF GetTextColor();
 };
 
-CBkColorEdit::CBkColorEdit(COLORREF backColor /*= RGB(255, 255, 255)*/)
+CColorEdit::CColorEdit(COLORREF backColor, COLORREF textColor, BOOL bTransparent)
 {
 	m_clrBack = backColor;
 	m_brBack.CreateSolidBrush(m_clrBack);
+	m_clrText = textColor;
+	m_bTransparent = bTransparent;
 	EnableToolTips(TRUE);
 }
 
-CBkColorEdit::~CBkColorEdit()
+CColorEdit::~CColorEdit()
 {
 }
 
-BEGIN_MESSAGE_MAP(CBkColorEdit, CEdit)
+BEGIN_MESSAGE_MAP(CColorEdit, CEdit)
 	ON_WM_CTLCOLOR_REFLECT()
 END_MESSAGE_MAP()
 
-HBRUSH CBkColorEdit::CtlColor(CDC* pDC, UINT nCtlColor)
+HBRUSH CColorEdit::CtlColor(CDC* pDC, UINT nCtlColor)
 {
-	// 背景颜色不支持设置透明度
-	pDC->SetBkColor(m_clrBack);
+	if(m_bTransparent)
+	{
+		pDC-> SetBkMode(TRANSPARENT); //设置字体背景为透明
+	}else
+	{
+		pDC->SetBkColor(m_clrBack);	// 设置背景色,不支持设置透明度
+	}
+	// 设置文字颜色
+	pDC->SetTextColor(m_clrText);
 	return m_brBack;
 }
 
-void CBkColorEdit::SetBackColor(COLORREF color)
+void CColorEdit::SetBackColor(COLORREF color)
 {
 	m_clrBack = color;
 	m_brBack.CreateSolidBrush(color);
 }
 
-COLORREF CBkColorEdit::GetBackColor()
+COLORREF CColorEdit::GetBackColor()
 {
 	return m_clrBack;
+}
+
+void CColorEdit::SetTransparent(BOOL bTransparent)
+{
+	m_bTransparent = bTransparent;
+}
+
+void CColorEdit::SetTextColor(COLORREF color)
+{
+	m_clrText = color;
+}
+
+COLORREF CColorEdit::GetTextColor()
+{
+	return m_clrText;
 }
 
 // CDuiEdit
@@ -70,10 +99,13 @@ CDuiEdit::CDuiEdit(HWND hWnd, CDuiObject* pDuiObject)
 	SetBitmapCount(4);
 
 	m_sizeLeftImage.SetSize(0,0);
+	m_sizeLeftImageDpi.SetSize(0, 0);
 	m_sizeSmallImage.SetSize(0,0);
+	m_sizeSmallImageDpi.SetSize(0, 0);
 
 	m_bBack = false;
 	m_clrBack = Color(255, 255, 255);
+	m_clrText = Color(255, 0, 0, 0);
 
 	m_bPassWord = false;
 	m_bMultiLine = false;
@@ -87,6 +119,7 @@ CDuiEdit::CDuiEdit(HWND hWnd, CDuiObject* pDuiObject)
 	m_nMaxChar = -1;
 
 	m_bIsSmallButton = FALSE;
+	m_bIsFocus = FALSE;//解决没有div容器的edit焦点问题 by lhc 20180903
 }
 
 CDuiEdit::CDuiEdit(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc, CString strTitle/* = ""*/,
@@ -104,11 +137,14 @@ CDuiEdit::CDuiEdit(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc,
 	m_bPassWord = bPassWord;
 	m_strTitle = strTitle;
 
-	m_sizeLeftImage.SetSize(0,0);
-	m_sizeSmallImage.SetSize(0,0);
+	m_sizeLeftImage.SetSize(0, 0);
+	m_sizeLeftImageDpi.SetSize(0, 0);
+	m_sizeSmallImage.SetSize(0, 0);
+	m_sizeSmallImageDpi.SetSize(0, 0);
 
 	m_bBack = false;
 	m_clrBack = Color(255, 255, 255);
+	m_clrText = Color(255, 0, 0, 0);
 
 	SetRect(rc);
 	SetBitmapCount(4);
@@ -123,6 +159,7 @@ CDuiEdit::CDuiEdit(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc,
 	m_nMaxChar = -1;
 
 	m_bIsSmallButton = FALSE;
+	m_bIsFocus = FALSE;//解决没有div容器的edit焦点问题 by lhc 20180903
 }
 
 CDuiEdit::~CDuiEdit(void)
@@ -148,7 +185,7 @@ CDuiEdit::~CDuiEdit(void)
 	}
 }
 
-bool CDuiEdit::SetLeftBitmap(UINT nResourceID, CString strType)
+bool CDuiEdit::SetLeftBitmap(UINT nResourceID, CString strType, BOOL bAdapterDpi)
 {
 	if(LoadImageFromIDResource(nResourceID, strType, m_bImageUseECM, m_pLeftImage))
 	{
@@ -163,12 +200,19 @@ bool CDuiEdit::SetLeftBitmap(UINT nResourceID, CString strType)
 			m_sizeLeftImage.SetSize(m_pLeftImage->GetHeight(), m_pLeftImage->GetHeight());
 			m_nLeftImageCount = m_pLeftImage->GetWidth() / m_pLeftImage->GetHeight();
 		}
+
+		m_sizeLeftImageDpi = m_sizeLeftImage;
+		if (bAdapterDpi)
+		{
+			CDuiWinDwmWrapper::AdapterDpi(m_sizeLeftImageDpi.cx, m_sizeLeftImageDpi.cy);
+		}
+
 		return true;
 	}
 	return false;
 }
 
-bool CDuiEdit::SetLeftBitmap(CString strImage)
+bool CDuiEdit::SetLeftBitmap(CString strImage, BOOL bAdapterDpi)
 {
 	if(DuiSystem::Instance()->LoadImageFile(strImage, m_bImageUseECM, m_pLeftImage))
 	{
@@ -183,6 +227,13 @@ bool CDuiEdit::SetLeftBitmap(CString strImage)
 			m_sizeLeftImage.SetSize(m_pLeftImage->GetHeight(), m_pLeftImage->GetHeight());
 			m_nLeftImageCount = m_pLeftImage->GetWidth() / m_pLeftImage->GetHeight();
 		}
+
+		m_sizeLeftImageDpi = m_sizeLeftImage;
+		if (bAdapterDpi)
+		{
+			CDuiWinDwmWrapper::AdapterDpi(m_sizeLeftImageDpi.cx, m_sizeLeftImageDpi.cy);
+		}
+
 		return true;
 	}
 	return false;
@@ -230,7 +281,7 @@ HRESULT CDuiEdit::OnAttributeLeftImage(const CString& strValue, BOOL bLoading)
 	return bLoading?S_FALSE:S_OK;
 }
 
-bool CDuiEdit::SetSmallBitmap(UINT nResourceID, CString strType)
+bool CDuiEdit::SetSmallBitmap(UINT nResourceID, CString strType, BOOL bAdapterDpi)
 {
 	if(LoadImageFromIDResource(nResourceID, strType, m_bImageUseECM, m_pSmallImage))
 	{
@@ -247,12 +298,19 @@ bool CDuiEdit::SetSmallBitmap(UINT nResourceID, CString strType)
 			m_nSmallImageCount = m_pSmallImage->GetWidth() / m_pSmallImage->GetHeight();
 			m_bIsSmallButton = FALSE;
 		}
+
+		m_sizeSmallImageDpi = m_sizeSmallImage;
+		if (bAdapterDpi)
+		{
+			CDuiWinDwmWrapper::AdapterDpi(m_sizeSmallImageDpi.cx, m_sizeSmallImageDpi.cy);
+		}
+
 		return true;
 	}
 	return false;
 }
 
-bool CDuiEdit::SetSmallBitmap(CString strImage)
+bool CDuiEdit::SetSmallBitmap(CString strImage, BOOL bAdapterDpi)
 {
 	if(DuiSystem::Instance()->LoadImageFile(strImage, m_bImageUseECM, m_pSmallImage))
 	{
@@ -269,6 +327,13 @@ bool CDuiEdit::SetSmallBitmap(CString strImage)
 			m_nSmallImageCount = m_pSmallImage->GetWidth() / m_pSmallImage->GetHeight();
 			m_bIsSmallButton = FALSE;
 		}
+
+		m_sizeSmallImageDpi = m_sizeSmallImage;
+		if (bAdapterDpi)
+		{
+			CDuiWinDwmWrapper::AdapterDpi(m_sizeSmallImageDpi.cx, m_sizeSmallImageDpi.cy);
+		}
+
 		return true;
 	}
 	return false;
@@ -316,6 +381,22 @@ HRESULT CDuiEdit::OnAttributeSmallImage(const CString& strValue, BOOL bLoading)
 	return bLoading?S_FALSE:S_OK;
 }
 
+// 设置背景色
+void CDuiEdit::SetBackColor(Color clrBack)
+{
+	m_clrBack = clrBack;
+	if(!m_bBack)
+	{
+		// 如果没有设置过背景色,则删除已创建的edit控件,等下一次显示时候自动刷新edit控件的颜色
+		DeleteEdit();
+	}else
+	{
+		// 如果设置过背景色,则只要调用CBkColorEdit的设置背景色的函数刷新edit控件的背景色
+		static_cast<CColorEdit*>(m_pEdit)->SetBackColor(m_clrBack.ToCOLORREF());
+	}
+	m_bBack = true;
+}
+
 // 从XML设置背景颜色属性
 HRESULT CDuiEdit::OnAttributeBackColor(const CString& strValue, BOOL bLoading)
 {
@@ -329,14 +410,18 @@ HRESULT CDuiEdit::OnAttributeBackColor(const CString& strValue, BOOL bLoading)
 
 void  CDuiEdit::SetControlRect(CRect rc) 
 {
+	BOOL bRefresh = ((m_rc.top != rc.top) || (m_rc.left != rc.left) || (m_rc.bottom != rc.bottom) || (m_rc.right != rc.right));
 	m_rc = rc;
 	m_rcText = m_rc;
 	m_rcText.top += 4;
-	m_rcText.left += (6 + m_sizeLeftImage.cx);
+	m_rcText.left += (DUI_DPI_X(6) + m_sizeLeftImageDpi.cx);
 	m_rcText.bottom -= 4;
-	m_rcText.right -= (3 + m_sizeSmallImage.cx);
-	// 删除编辑控件,这样当编辑控件重新创建时候就可以调整大小
-	DeleteEdit();
+	m_rcText.right -= (DUI_DPI_X(3) + m_sizeSmallImageDpi.cx);
+	// 如果edit位置有变化,删除编辑控件,这样当编辑控件重新创建时候就可以调整大小
+	if(bRefresh)
+	{
+		DeleteEdit();
+	}
 }
 
 BOOL CDuiEdit::IsDraw(CPoint point)
@@ -419,9 +504,24 @@ void CDuiEdit::SetControlTitle(CString strTitle)
 	}
 }
 
+// 设置字体
+void CDuiEdit::SetFont(CString strFont, int nFontWidth, FontStyle fontStyle)
+{
+	// 删除windows控件和编辑状态使用的字体对象
+	DeleteEdit();
+	if(m_fontTemp.m_hObject)
+	{
+		m_fontTemp.DeleteObject();
+	}
+
+	// 设置新的字体
+	__super::SetFont(strFont, nFontWidth, fontStyle);
+}
+
 // 设置控件的焦点
 BOOL CDuiEdit::SetControlFocus(BOOL bFocus)
 {
+	m_bIsFocus = TRUE; //解决没有div容器的edit焦点问题 by lhc 20180903
 	__super::SetControlFocus(bFocus);
 
 	enumButtonState buttonState = m_buttonState;
@@ -433,12 +533,14 @@ BOOL CDuiEdit::SetControlFocus(BOOL bFocus)
 		m_buttonState = enBSNormal;
 		m_EditState = enBSNormal;
 		HideEdit();
+		m_bIsFocus = FALSE;//解决没有div容器的edit焦点问题 by lhc 20180903
 	}else
 	{
 		m_bDown = true;
 		m_buttonState = enBSDown;
 		m_EditState = enBSDown;
 		ShowEdit();
+		
 	}
 
 	bool bIsDraw = buttonState != m_buttonState || editState != m_EditState;
@@ -498,6 +600,13 @@ BOOL CDuiEdit::OnControlMouseMove(UINT nFlags, CPoint point)
 
 BOOL CDuiEdit::OnControlLButtonDown(UINT nFlags, CPoint point)
 {
+	if (!m_bIsFocus)//解决没有div容器的edit焦点问题 by lhc 20180903
+	{
+		SetControlFocus(m_bIsFocus);
+		m_bIsFocus = FALSE;
+	}
+
+
 	enumButtonState buttonState = m_buttonState;	
 	enumButtonState editState = m_EditState;
 	if(!m_bIsDisable)
@@ -524,7 +633,7 @@ BOOL CDuiEdit::OnControlLButtonDown(UINT nFlags, CPoint point)
 					{				
 						m_buttonState = enBSHover;
 					}				
-					SendMessage(m_uID, CONTROL_BUTTON, MSG_BUTTON_DOWN);
+					SendMessage(MSG_CONTROL_BUTTON, CONTROL_BUTTON, MSG_BUTTON_DOWN);
 					HideEdit();
 				}
 			}
@@ -535,9 +644,10 @@ BOOL CDuiEdit::OnControlLButtonDown(UINT nFlags, CPoint point)
 					m_bDown = false;
 					m_buttonState = enBSHover;
 				}
+				//HideEdit();
 				ShowEdit();
 				
-				SendMessage(m_uID, CONTROL_EDIT, MSG_BUTTON_DOWN);
+				SendMessage(MSG_CONTROL_BUTTON, CONTROL_EDIT, MSG_BUTTON_DOWN);
 			}		
 		}
 		else
@@ -583,7 +693,7 @@ BOOL CDuiEdit::OnControlLButtonUp(UINT nFlags, CPoint point)
 					{
 						m_buttonState = enBSHover;
 					}	
-					SendMessage(m_uID, CONTROL_BUTTON, MSG_BUTTON_UP);
+					SendMessage(MSG_CONTROL_BUTTON, CONTROL_BUTTON, MSG_BUTTON_UP);
 				}
 			}
 			else
@@ -596,7 +706,7 @@ BOOL CDuiEdit::OnControlLButtonUp(UINT nFlags, CPoint point)
 				{
 					m_buttonState = enBSNormal;
 				}	
-				SendMessage(m_uID, CONTROL_EDIT, MSG_BUTTON_UP);
+				SendMessage(MSG_CONTROL_BUTTON, CONTROL_EDIT, MSG_BUTTON_UP);
 			}			
 		}
 		else
@@ -714,10 +824,10 @@ void CDuiEdit::ShowEdit()
 			rc.top += 2;
 		}
 
-		if(m_bBack)
+		if(m_bBack || (m_clrText.GetValue() != Color(255,0,0,0).GetValue()))
 		{
-			// 如果设置了背景色,则创建背景色可以更改的编辑控件
-			m_pEdit = new CBkColorEdit(m_clrBack.ToCOLORREF());
+			// 如果设置了背景色或文字色,则创建颜色可以更改的编辑控件
+			m_pEdit = new CColorEdit(m_clrBack.ToCOLORREF(), m_clrText.ToCOLORREF(), (m_clrBack.GetAlpha() == 0));
 		}else
 		{
 			// 否则创建普通的编辑控件
@@ -792,6 +902,9 @@ void CDuiEdit::ShowEdit()
 	m_pEdit->EnableWindow(!m_bIsDisable);
 	m_pEdit->SetReadOnly(m_bReadOnly);
 	m_pEdit->SetFocus();
+
+	::SendMessage(m_pEdit->GetSafeHwnd(), WM_SETFOCUS, 1, 1);
+	::SendMessage(::GetParent(m_pEdit->GetSafeHwnd()), WM_SETFOCUS, 1, 1);
 }
 
 // 隐藏编辑控件
@@ -806,6 +919,8 @@ void CDuiEdit::HideEdit()
 		{
 			// 获取编辑框的内容保存在控件的变量中
 			m_pEdit->GetWindowText(m_strTitle);
+			::SendMessage(m_pEdit->GetSafeHwnd(), WM_KILLFOCUS, -1, 0);
+			::SendMessage(::GetParent(m_pEdit->GetSafeHwnd()), WM_KILLFOCUS, -1, 0);
 		}
 
 		// 隐藏输入控件
@@ -840,7 +955,11 @@ LRESULT CDuiEdit::OnMessage(UINT uID, UINT uMsg, WPARAM wParam, LPARAM lParam)
 void CDuiEdit::DrawControl(CDC &dc, CRect rcUpdate)
 {
 	Graphics graphics(dc);
-
+	if (m_bIsDisable)
+	{
+		m_EditState = enBSDisable;
+		m_buttonState = enBSDisable;
+	}
 	DrawImageFrame(graphics, m_pImage, m_rc, m_EditState * m_sizeImage.cx, 0, m_sizeImage.cx, m_sizeImage.cy, 4);
 
 	// 画背景色
@@ -854,9 +973,9 @@ void CDuiEdit::DrawControl(CDC &dc, CRect rcUpdate)
 	{
 		CRect  rc;
 		rc.left = m_rc.left + 2;
-		rc.top = m_rc.top + (m_rc.Height() - m_sizeLeftImage.cy) / 2;
-		rc.right = rc.left + m_sizeLeftImage.cx;
-		rc.bottom = rc.top + m_sizeLeftImage.cy;
+		rc.top = m_rc.top + (m_rc.Height() - m_sizeLeftImageDpi.cy) / 2;
+		rc.right = rc.left + m_sizeLeftImageDpi.cx;
+		rc.bottom = rc.top + m_sizeLeftImageDpi.cy;
 		
 		if(m_nLeftImageCount > m_buttonState)
 		{
@@ -872,10 +991,10 @@ void CDuiEdit::DrawControl(CDC &dc, CRect rcUpdate)
 	if(m_pSmallImage)
 	{
 		CRect  rc;
-		rc.left = m_rc.right - m_sizeSmallImage.cx - 2;
-		rc.top = m_rc.top + (m_rc.Height() - m_sizeSmallImage.cy) / 2;
-		rc.right = rc.left + m_sizeSmallImage.cx;
-		rc.bottom = rc.top + m_sizeSmallImage.cy;
+		rc.left = m_rc.right - m_sizeSmallImageDpi.cx - 2;
+		rc.top = m_rc.top + (m_rc.Height() - m_sizeSmallImageDpi.cy) / 2;
+		rc.right = rc.left + m_sizeSmallImageDpi.cx;
+		rc.bottom = rc.top + m_sizeSmallImageDpi.cy;
 		
 		if(m_nSmallImageCount > m_buttonState)
 		{

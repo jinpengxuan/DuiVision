@@ -1,5 +1,6 @@
 #include "StdAfx.h"
 #include "Panel.h"
+#include "vcicomm.h"
 
 #define	SCROLL_V	1	// 垂直滚动条控件ID
 #define	SCROLL_H	2	// 水平滚动条控件ID
@@ -291,9 +292,9 @@ void CDuiPanel::InitUI(CRect rcClient, DuiXmlNode pNode)
 				if(pControl)
 				{
 					pControl->Load(pControlElem);
-					if(pControl->IsClass(CArea::GetClassName()) || pControl->IsClass(CDuiFrame::GetClassName()))
+					if(pControl->IsClass(CArea::GetClassName()))
 					{
-						// Area和Frame不能响应鼠标,必须加到Area列表中
+						// Area不能响应鼠标,必须加到Area列表中
 						m_vecArea.push_back(pControl);
 					}else
 					{
@@ -384,29 +385,8 @@ void CDuiPanel::SetControlVisible(BOOL bIsVisible)
 {
 	__super::SetControlVisible(bIsVisible);
 
-	// 设置每个子控件的原生Windows控件的可见性
-	for (size_t i = 0; i < m_vecControl.size(); i++)
-	{
-		CControlBase * pControlBase = m_vecControl.at(i);
-		if (pControlBase)
-		{
-			if(pControlBase->IsClass(_T("div")) || pControlBase->IsClass(_T("tabctrl")) || pControlBase->IsClass(_T("layout")))
-			{
-				// 如果子控件是容器类型控件,则调用子控件的设置可见性函数
-				pControlBase->SetControlVisible(bIsVisible);
-			}else
-			{
-				// 判断子控件当前是否可见,根据可见性设置子控件的原生控件的可见性
-				// 如果是edit控件,暂时不显示原生控件,否则tab页切换时候会有问题
-				BOOL bVisible = pControlBase->GetVisible();
-				if(pControlBase->IsClass(CDuiEdit::GetClassName()))
-				{
-					bVisible = FALSE;
-				}
-				pControlBase->SetControlWndVisible(bVisible);
-			}
-		}
-	}
+	// 设置控件和子控件的原生Windows控件的可见性
+	SetControlWndVisible(bIsVisible);
 
 	// 如果有插件,则设置插件的可见性
 	if(m_pDuiPluginObject)
@@ -415,10 +395,10 @@ void CDuiPanel::SetControlVisible(BOOL bIsVisible)
 	}
 }
 
-// 重载设置控件隐藏状态的函数，需要调用子控件的函数
-void CDuiPanel::SetControlHide(BOOL bIsHide)
+// 重载设置控件中windows原生控件可见性的函数，需要调用子控件的函数
+void CDuiPanel::SetControlWndVisible(BOOL bIsVisible)
 {
-	__super::SetControlHide(bIsHide);
+	__super::SetControlWndVisible(bIsVisible);
 
 	// 设置每个子控件的原生Windows控件的可见性
 	for (size_t i = 0; i < m_vecControl.size(); i++)
@@ -426,22 +406,15 @@ void CDuiPanel::SetControlHide(BOOL bIsHide)
 		CControlBase * pControlBase = m_vecControl.at(i);
 		if (pControlBase)
 		{
-			if(pControlBase->IsClass(_T("div")) || pControlBase->IsClass(_T("tabctrl")) || pControlBase->IsClass(_T("layout")))
+			// 判断子控件当前是否可见,根据可见性设置子控件的原生控件的可见性
+			// 如果是edit控件,暂时不显示原生控件,否则tab页切换时候会有问题
+			BOOL bVisible = pControlBase->GetVisible();
+			if(pControlBase->IsClass(CDuiEdit::GetClassName()))
 			{
-				// 如果子控件是容器类型控件,则调用子控件的设置隐藏函数
-				pControlBase->SetControlHide(bIsHide);
-			}else
-			{
-				// 判断子控件当前是否可见,根据可见性设置子控件的原生控件的可见性
-				pControlBase->SetControlWndVisible(pControlBase->GetVisible());
+				bVisible = FALSE;
 			}
+			pControlBase->SetControlWndVisible(bVisible);
 		}
-	}
-
-	// 如果有插件,则设置插件的显示状态(插件接口暂不支持SetHide函数)
-	if(m_pDuiPluginObject)
-	{
-		m_pDuiPluginObject->SetVisible(!bIsHide);
 	}
 }
 
@@ -682,13 +655,24 @@ BOOL CDuiPanel::OnControlRButtonDblClk(UINT nFlags, CPoint point)
 	return FALSE;
 }
 
-// 键盘事件处理
+// 键盘按下事件处理
 BOOL CDuiPanel::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
 	if(m_pDuiPluginObject)
 	{
 		return m_pDuiPluginObject->OnKeyDown(nChar, nRepCnt, nFlags);
 	}
+	return FALSE;
+}
+
+// 键盘放开事件处理
+BOOL CDuiPanel::OnControlKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags)
+{
+	// 为了兼容以前的版本,插件暂不支持此函数
+	/*if(m_pDuiPluginObject)
+	{
+		return m_pDuiPluginObject->OnKeyUp(nChar, nRepCnt, nFlags);
+	}*/
 	return FALSE;
 }
 
@@ -836,7 +820,7 @@ CDuiPanel::XDuiPanel::GetAppName()
 STDMETHODIMP_(CString)
 CDuiPanel::XDuiPanel::GetPlatPath()
 {
-	return DuiSystem::GetExePath();
+	return DuiSystem::GetRootPath();
 }
 
 // 获取平台版本

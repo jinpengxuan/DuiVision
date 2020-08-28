@@ -166,11 +166,11 @@ BOOL CDuiTabCtrl::Load(DuiXmlNode pXmlElem, BOOL bLoadSubControl)
 	// 如果没有设置tabctrl高度/宽度,则按照hover图片的高度/宽度
 	if((m_nTabType == TAB_TYPE_HORIZONTAL) && (m_pImageHover != NULL) && (m_nTabCtrlHeight == 0))
 	{
-		m_nTabCtrlHeight = m_sizeHover.cy;
+		m_nTabCtrlHeight = m_sizeHoverDpi.cy;
 	}else
 	if((m_nTabType == TAB_TYPE_VERTICAL) && (m_pImageHover != NULL) && (m_nTabCtrlWidth == 0))
 	{
-		m_nTabCtrlWidth = m_sizeHover.cx;
+		m_nTabCtrlWidth = m_sizeHoverDpi.cx;
 	}
 
 	m_nTabItemWidth = m_nTabItemMaxWidth;
@@ -178,11 +178,11 @@ BOOL CDuiTabCtrl::Load(DuiXmlNode pXmlElem, BOOL bLoadSubControl)
 	// 如果没有设置tab项的宽度,则按照hover图片的宽度
 	if((m_nTabType == TAB_TYPE_HORIZONTAL) && (m_pImageHover != NULL) && (m_nTabItemWidth == 0))
 	{
-		m_nTabItemWidth = m_sizeHover.cx;
+		m_nTabItemWidth = m_sizeHoverDpi.cx;
 	}else
 	if((m_nTabType == TAB_TYPE_VERTICAL) && (m_pImageHover != NULL) && (m_nTabItemHeight == 0))
 	{
-		m_nTabItemHeight = m_sizeHover.cy;
+		m_nTabItemHeight = m_sizeHoverDpi.cy;
 	}
 
 	BOOL bAllVisible = TRUE;
@@ -405,6 +405,7 @@ BOOL CDuiTabCtrl::InsertItem(int nItem, UINT nItemID, CString strName, CString s
 	itemInfo.strAction = strAction;
 	itemInfo.bOutLink = bOutLink;
 	itemInfo.sizeImage.SetSize(0, 0);
+	itemInfo.sizeImageDpi.SetSize(0, 0);
 	itemInfo.nImageCount = 3;
 	if(nImageCount != -1)
 	{
@@ -415,9 +416,11 @@ BOOL CDuiTabCtrl::InsertItem(int nItem, UINT nItemID, CString strName, CString s
 	if(LoadImageFromIDResource(nResourceID, strType, m_bImageUseECM, itemInfo.pImage))
 	{
 		itemInfo.sizeImage.SetSize(itemInfo.pImage->GetWidth() / itemInfo.nImageCount, itemInfo.pImage->GetHeight());
+		itemInfo.sizeImageDpi.SetSize(itemInfo.sizeImage.cx, itemInfo.sizeImage.cy);
+		CDuiWinDwmWrapper::AdapterDpi(itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy);
 	}
 
-	itemInfo.rc.SetRect(m_rc.left, m_rc.top, m_rc.left + (nItemWidth == 0 ? itemInfo.sizeImage.cx : nItemWidth), m_rc.bottom);
+	itemInfo.rc.SetRect(m_rc.left, m_rc.top, m_rc.left + (nItemWidth == 0 ? itemInfo.sizeImageDpi.cx : nItemWidth), m_rc.bottom);
 
 	itemInfo.pControl = pControl;
 
@@ -436,6 +439,7 @@ BOOL CDuiTabCtrl::InsertItem(int nItem, UINT nItemID, CString strName, CString s
 	itemInfo.strAction = strAction;
 	itemInfo.bOutLink = bOutLink;
 	itemInfo.sizeImage.SetSize(0, 0);
+	itemInfo.sizeImageDpi.SetSize(0, 0);
 	itemInfo.nImageCount = 3;
 	if(nImageCount != -1)
 	{
@@ -455,12 +459,14 @@ BOOL CDuiTabCtrl::InsertItem(int nItem, UINT nItemID, CString strName, CString s
 	if(itemInfo.pImage && bLoadImageOk)
 	{
 		itemInfo.sizeImage.SetSize(itemInfo.pImage->GetWidth() / itemInfo.nImageCount, itemInfo.pImage->GetHeight());
+		itemInfo.sizeImageDpi.SetSize(itemInfo.sizeImage.cx, itemInfo.sizeImage.cy);
+		CDuiWinDwmWrapper::AdapterDpi(itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy);
 	}
 
 	int nWidth = (nItemWidth == 0 ? itemInfo.sizeImage.cx : nItemWidth);
 	if(nWidth == 0)
 	{
-		nWidth = m_sizeHover.cx;
+		nWidth = m_sizeHoverDpi.cx;
 	}
 	itemInfo.rc.SetRect(m_rc.left, m_rc.top, m_rc.left + nWidth, m_rc.bottom);
 
@@ -482,15 +488,18 @@ BOOL CDuiTabCtrl::InsertItem(int nItem, UINT nItemID, CString strName, CString s
 	itemInfo.bOutLink = bOutLink;
 	itemInfo.pImage = NULL;
 	itemInfo.sizeImage.SetSize(0, 0);
+	itemInfo.sizeImageDpi.SetSize(0, 0);
 	itemInfo.nImageCount = 1;
 	itemInfo.nImageIndex = nImageIndex;
 
 	if((m_pImage != NULL) && (m_nImagePicCount > 0))
 	{
 		itemInfo.sizeImage.SetSize(m_pImage->GetWidth() / m_nImagePicCount, m_pImage->GetHeight());
+		itemInfo.sizeImageDpi.SetSize(itemInfo.sizeImage.cx, itemInfo.sizeImage.cy);
+		CDuiWinDwmWrapper::AdapterDpi(itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy);
 	}
 
-	itemInfo.rc.SetRect(m_rc.left, m_rc.top, m_rc.left + (nItemWidth == 0 ? itemInfo.sizeImage.cx : nItemWidth), m_rc.bottom);
+	itemInfo.rc.SetRect(m_rc.left, m_rc.top, m_rc.left + (nItemWidth == 0 ? itemInfo.sizeImageDpi.cx : nItemWidth), m_rc.bottom);
 
 	itemInfo.pControl = pControl;
 
@@ -571,9 +580,9 @@ BOOL CDuiTabCtrl::InsertItem(int nItem, TabItemInfo &itemInfo)
 			if(i < m_vecItemInfo.size() - 1 && m_pImageSeperator != NULL)
 			{
 				CRect &rc = m_vecRcSeperator.at(i);
-				rc.SetRect(nXPos, nYPos, nXPos + m_sizeSeperator.cx, nYPos + m_sizeSeperator.cy);
-				nXPos += m_sizeSeperator.cx;
-				nXTabBtnPos += m_sizeSeperator.cx;
+				rc.SetRect(nXPos, nYPos, nXPos + m_sizeSeperatorDpi.cx, nYPos + m_sizeSeperatorDpi.cy);
+				nXPos += m_sizeSeperatorDpi.cx;
+				nXTabBtnPos += m_sizeSeperatorDpi.cx;
 			}
 		}else
 		if(m_nTabType == TAB_TYPE_VERTICAL)	// 垂直模式
@@ -622,9 +631,9 @@ BOOL CDuiTabCtrl::InsertItem(int nItem, TabItemInfo &itemInfo)
 			if(i < m_vecItemInfo.size() - 1 && m_pImageSeperator != NULL)
 			{
 				CRect &rc = m_vecRcSeperator.at(i);
-				rc.SetRect(nXPos, nYPos, nXPos + m_sizeSeperator.cx, nYPos + m_sizeSeperator.cy);
-				nYPos += m_sizeSeperator.cy;
-				nYTabBtnPos += m_sizeSeperator.cy;
+				rc.SetRect(nXPos, nYPos, nXPos + m_sizeSeperatorDpi.cx, nYPos + m_sizeSeperatorDpi.cy);
+				nYPos += m_sizeSeperatorDpi.cy;
+				nYTabBtnPos += m_sizeSeperatorDpi.cy;
 			}
 		}
 
@@ -757,7 +766,7 @@ int CDuiTabCtrl::SetSelectItem(int nItem)
 				}
 			}
 		}
-
+		SetUpdate(FALSE);
 		UpdateControl();
 	}
 
@@ -768,6 +777,16 @@ int CDuiTabCtrl::SetSelectItem(int nItem)
 int CDuiTabCtrl::GetSelectItem()
 {
 	return m_nDownItem;
+}
+
+int CDuiTabCtrl::GetCtrlHeight()
+{
+	return m_nTabCtrlHeight;
+}
+
+int CDuiTabCtrl::GetCtrlWidth()
+{
+	return m_nTabCtrlWidth;
 }
 
 // 设置Tab页签的宽度(水平模式)
@@ -909,8 +928,8 @@ void CDuiTabCtrl::RefreshItems()
 			if(i < m_vecItemInfo.size() - 1 && m_pImageSeperator != NULL)
 			{
 				CRect &rc = m_vecRcSeperator.at(i);
-				rc.SetRect(nXPos, nYPos, nXPos + m_sizeSeperator.cx, nYPos + m_sizeSeperator.cy);
-				nXPos += m_sizeSeperator.cx;
+				rc.SetRect(nXPos, nYPos, nXPos + m_sizeSeperatorDpi.cx, nYPos + m_sizeSeperatorDpi.cy);
+				nXPos += m_sizeSeperatorDpi.cx;
 			}
 
 			// 设置Tab页签按钮的位置
@@ -957,8 +976,8 @@ void CDuiTabCtrl::RefreshItems()
 			if(i < m_vecItemInfo.size() - 1 && m_pImageSeperator != NULL)
 			{
 				CRect &rc = m_vecRcSeperator.at(i);
-				rc.SetRect(nXPos, nYPos, nXPos + m_sizeSeperator.cx, nYPos + m_sizeSeperator.cy);
-				nYPos += m_sizeSeperator.cy;
+				rc.SetRect(nXPos, nYPos, nXPos + m_sizeSeperatorDpi.cx, nYPos + m_sizeSeperatorDpi.cy);
+				nYPos += m_sizeSeperatorDpi.cy;
 			}
 
 			// 设置Tab页签按钮的位置
@@ -1173,7 +1192,7 @@ void CDuiTabCtrl::SetControlRect(CRect rc)
 // 重载设置控件可见性的函数，需要调用子控件的函数
 void CDuiTabCtrl::SetControlVisible(BOOL bIsVisible)
 {
-	//__super::SetControlVisible(bIsVisible);
+	__super::SetControlVisible(bIsVisible);
 
 	if(bIsVisible)
 	{
@@ -1204,36 +1223,20 @@ void CDuiTabCtrl::SetControlVisible(BOOL bIsVisible)
 	}
 }
 
-// 重载设置控件隐藏状态的函数，需要调用子控件的函数
-void CDuiTabCtrl::SetControlHide(BOOL bIsHide)
+// 重载设置控件中windows原生控件可见性的函数，需要调用子控件的函数
+void CDuiTabCtrl::SetControlWndVisible(BOOL bIsVisible)
 {
-	//__super::SetControlHide(bIsHide);
+	__super::SetControlWndVisible(bIsVisible);
 
-	if(!bIsHide)
+	// 设置控件和子控件的原生Windows控件的可见性
+	for (size_t i = 0; i < m_vecControl.size(); i++)
 	{
-		// 如果设置为可见状态,则仅可见页的控件设置为可见状态
-		for(size_t i = 0; i < m_vecItemInfo.size(); i++)
+		CControlBase * pControlBase = m_vecControl.at(i);
+		if (pControlBase)
 		{
-			TabItemInfo &itemInfo = m_vecItemInfo.at(i);
-			if((itemInfo.pControl != NULL) && (i == m_nDownItem))
-			{
-				itemInfo.pControl->SetControlHide(bIsHide);
-			}else
-			if((itemInfo.pControl != NULL) && (i != m_nDownItem))
-			{
-				itemInfo.pControl->SetControlHide(TRUE);
-			}
-		}
-	}else
-	{
-		// 如果设置为隐藏状态,则所有页面的控件都需要隐藏
-		for(size_t i = 0; i < m_vecItemInfo.size(); i++)
-		{
-			TabItemInfo &itemInfo = m_vecItemInfo.at(i);
-			if(itemInfo.pControl != NULL)
-			{
-				itemInfo.pControl->SetControlHide(TRUE);
-			}
+			// 判断子控件当前是否可见,根据可见性设置子控件的原生控件的可见性
+			BOOL bVisible = pControlBase->GetVisible();
+			pControlBase->SetControlWndVisible(bVisible);
 		}
 	}
 }
@@ -1498,7 +1501,7 @@ BOOL CDuiTabCtrl::OnControlScroll(BOOL bVertical, UINT nFlags, CPoint point)
 	return false;
 }
 
-// 键盘事件处理
+// 键盘按下事件处理
 BOOL CDuiTabCtrl::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
 	if(m_nDownItem != -1)
@@ -1507,6 +1510,21 @@ BOOL CDuiTabCtrl::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 		if(itemInfo.pControl != NULL)
 		{
 			return itemInfo.pControl->OnKeyDown(nChar, nRepCnt, nFlags);
+		}
+	}
+
+	return false;
+}
+
+// 键盘放开事件处理
+BOOL CDuiTabCtrl::OnControlKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags)
+{
+	if(m_nDownItem != -1)
+	{
+		TabItemInfo &itemInfo = m_vecItemInfo.at(m_nDownItem);
+		if(itemInfo.pControl != NULL)
+		{
+			return itemInfo.pControl->OnKeyUp(nChar, nRepCnt, nFlags);
 		}
 	}
 
@@ -1576,7 +1594,7 @@ void CDuiTabCtrl::DrawControlHorizontal(CDC &dc, CRect rcUpdate)
 				}
 
 				// 图片位置(根据对齐方式进行计算)
-				CPoint point = GetOriginPoint(m_nTabItemWidth, m_nTabCtrlHeight, itemInfo.sizeImage.cx, itemInfo.sizeImage.cy,
+				CPoint point = GetOriginPoint(m_nTabItemWidth, m_nTabCtrlHeight, itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy,
 						GetGDIAlignment(m_uAlignment), GetGDIVAlignment(m_uVAlignment));
 				// 如果有图片和文字,则图片的垂直对齐按照上对齐方式
 				if(!itemInfo.strText.IsEmpty())
@@ -1592,14 +1610,14 @@ void CDuiTabCtrl::DrawControlHorizontal(CDC &dc, CRect rcUpdate)
 					{
 						nImageIndex = 0;
 					}
-					graphics.DrawImage(itemInfo.pImage, Rect(nXPos + point.x, nYPos + point.y,  itemInfo.sizeImage.cx, itemInfo.sizeImage.cy),
+					graphics.DrawImage(itemInfo.pImage, Rect(nXPos + point.x, nYPos + point.y,  itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy),
 						itemInfo.sizeImage.cx * nImageIndex, 0, itemInfo.sizeImage.cx, itemInfo.sizeImage.cy, UnitPixel);
 				}else
 				if((m_pImage != NULL) && (itemInfo.nImageIndex != -1))	// 如果设置了页签图片索引,使用tabctrl图片的索引图片
 				{
 					if(m_enTabImageMode == enTIMNormal)	// 普通模式
 					{
-						graphics.DrawImage(m_pImage, Rect(nXPos + point.x, nYPos + point.y,  itemInfo.sizeImage.cx, itemInfo.sizeImage.cy),
+						graphics.DrawImage(m_pImage, Rect(nXPos + point.x, nYPos + point.y,  itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy),
 							itemInfo.sizeImage.cx * itemInfo.nImageIndex, 0, itemInfo.sizeImage.cx, itemInfo.sizeImage.cy, UnitPixel);
 					}else
 					if(m_enTabImageMode == enTIMMID)	// 九宫格模式
@@ -1613,12 +1631,12 @@ void CDuiTabCtrl::DrawControlHorizontal(CDC &dc, CRect rcUpdate)
 				// 画tab页签热点图(如果存在tabctrl设置的热点图的话)
 				if((m_pImageHover != NULL) && (i > 0))
 				{
-					int nX = (itemInfo.rc.Width() - m_sizeHover.cx) / 2;
+					int nX = (itemInfo.rc.Width() - m_sizeHoverDpi.cx) / 2;
 					if(nX < 0)
 					{
 						nX = 0;
 					}
-					graphics.DrawImage(m_pImageHover, Rect(nXPos + nX, nYPos,  m_sizeHover.cx, m_sizeHover.cy),
+					graphics.DrawImage(m_pImageHover, Rect(nXPos + nX, nYPos,  m_sizeHoverDpi.cx, m_sizeHoverDpi.cy),
 						m_sizeHover.cx * (i-1), 0, m_sizeHover.cx, m_sizeHover.cy, UnitPixel);
 				}
 
@@ -1637,10 +1655,10 @@ void CDuiTabCtrl::DrawControlHorizontal(CDC &dc, CRect rcUpdate)
 					}
 
 					RectF rectText((Gdiplus::REAL)nXPos,
-							(Gdiplus::REAL)(nYPos + itemInfo.sizeImage.cy + 1),
+							(Gdiplus::REAL)(nYPos + itemInfo.sizeImageDpi.cy + 1),
 							(Gdiplus::REAL)((m_pImageTabBtn != NULL) ? (itemInfo.rc.Width()-m_sizeTabBtn.cx) : itemInfo.rc.Width()),
-							(Gdiplus::REAL)(m_nTabCtrlHeight - itemInfo.sizeImage.cy - 1));
-					if(m_nTabCtrlHeight <= itemInfo.sizeImage.cy)
+							(Gdiplus::REAL)(m_nTabCtrlHeight - itemInfo.sizeImageDpi.cy - 1));
+					if(m_nTabCtrlHeight <= itemInfo.sizeImageDpi.cy)
 					{
 						// 如果tabctrl高度小于图片高度,则文字直接居中显示
 						rectText.Y = (Gdiplus::REAL)nYPos;
@@ -1662,10 +1680,10 @@ void CDuiTabCtrl::DrawControlHorizontal(CDC &dc, CRect rcUpdate)
 				{
 					CRect &rc = m_vecRcSeperator.at(j);
 					int nSepHeight = itemInfo.rc.Height();	// m_sizeSeperator.cy
-					graphics.DrawImage(m_pImageSeperator, Rect(nXPos, nYPos, m_sizeSeperator.cx, nSepHeight),
+					graphics.DrawImage(m_pImageSeperator, Rect(nXPos, nYPos, m_sizeSeperatorDpi.cx, nSepHeight),
 						0, 0, m_sizeSeperator.cx, m_sizeSeperator.cy, UnitPixel);
 
-					nXPos += m_sizeSeperator.cx;
+					nXPos += m_sizeSeperatorDpi.cx;
 				}
 			}
 		}
@@ -1766,7 +1784,7 @@ void CDuiTabCtrl::DrawControlVertical(CDC &dc, CRect rcUpdate)
 				}
 
 				// 图片位置(根据对齐方式进行计算)
-				CPoint point = GetOriginPoint(m_nTabCtrlWidth, m_nTabItemHeight, itemInfo.sizeImage.cx, itemInfo.sizeImage.cy,
+				CPoint point = GetOriginPoint(m_nTabCtrlWidth, m_nTabItemHeight, itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy,
 						GetGDIAlignment(m_uAlignment), GetGDIVAlignment(m_uVAlignment));
 				// 如果有图片和文字,则图片的水平对齐按照左对齐方式
 				if(!itemInfo.strText.IsEmpty())
@@ -1782,14 +1800,14 @@ void CDuiTabCtrl::DrawControlVertical(CDC &dc, CRect rcUpdate)
 					{
 						nImageIndex = 0;
 					}
-					graphics.DrawImage(itemInfo.pImage, Rect(nXPos + point.x, nYPos + point.y,  itemInfo.sizeImage.cx, itemInfo.sizeImage.cy),
+					graphics.DrawImage(itemInfo.pImage, Rect(nXPos + point.x, nYPos + point.y,  itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy),
 						itemInfo.sizeImage.cx * nImageIndex, 0, itemInfo.sizeImage.cx, itemInfo.sizeImage.cy, UnitPixel);
 				}else
 				if((m_pImage != NULL) && (itemInfo.nImageIndex != -1))	// 如果设置了页签图片索引,使用tabctrl图片的索引图片
 				{
 					if(m_enTabImageMode == enTIMNormal)	// 普通模式
 					{
-						graphics.DrawImage(m_pImage, Rect(nXPos + point.x, nYPos + point.y,  itemInfo.sizeImage.cx, itemInfo.sizeImage.cy),
+						graphics.DrawImage(m_pImage, Rect(nXPos + point.x, nYPos + point.y,  itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy),
 							itemInfo.sizeImage.cx * itemInfo.nImageIndex, 0, itemInfo.sizeImage.cx, itemInfo.sizeImage.cy, UnitPixel);
 					}else
 					if(m_enTabImageMode == enTIMMID)	// 九宫格模式
@@ -1803,12 +1821,12 @@ void CDuiTabCtrl::DrawControlVertical(CDC &dc, CRect rcUpdate)
 				// 画tab页签热点图(如果存在tabctrl设置的热点图的话)
 				if((m_pImageHover != NULL) && (i > 0))
 				{
-					int nY = (itemInfo.rc.Height() - m_sizeHover.cy) / 2;
+					int nY = (itemInfo.rc.Height() - m_sizeHoverDpi.cy) / 2;
 					if(nY < 0)
 					{
 						nY = 0;
 					}
-					graphics.DrawImage(m_pImageHover, Rect(nXPos, nYPos + nY,  m_sizeHover.cx, m_sizeHover.cy),
+					graphics.DrawImage(m_pImageHover, Rect(nXPos, nYPos + nY,  m_sizeHoverDpi.cx, m_sizeHoverDpi.cy),
 						m_sizeHover.cx * (i-1), 0, m_sizeHover.cx, m_sizeHover.cy, UnitPixel);
 				}
 
@@ -1826,11 +1844,11 @@ void CDuiTabCtrl::DrawControlVertical(CDC &dc, CRect rcUpdate)
 						solidBrushItem.SetColor(m_clrTextDown);
 					}
 
-					RectF rectText((Gdiplus::REAL)(nXPos + itemInfo.sizeImage.cx + 1),
+					RectF rectText((Gdiplus::REAL)(nXPos + itemInfo.sizeImageDpi.cx + 1),
 							(Gdiplus::REAL)nYPos,
-							(Gdiplus::REAL)(m_nTabCtrlWidth - itemInfo.sizeImage.cx - 1),
+							(Gdiplus::REAL)(m_nTabCtrlWidth - itemInfo.sizeImageDpi.cx - 1),
 							(Gdiplus::REAL)((m_pImageTabBtn != NULL) ? (itemInfo.rc.Height()-m_sizeTabBtn.cy) : itemInfo.rc.Height()));
-					if(m_nTabCtrlWidth <= itemInfo.sizeImage.cx)
+					if(m_nTabCtrlWidth <= itemInfo.sizeImageDpi.cx)
 					{
 						// 如果tabctrl宽度小于图片宽度,则文字直接居中显示
 						rectText.X = (Gdiplus::REAL)nXPos;
@@ -1852,10 +1870,10 @@ void CDuiTabCtrl::DrawControlVertical(CDC &dc, CRect rcUpdate)
 				{
 					CRect &rc = m_vecRcSeperator.at(j);
 					int nSepWidth = itemInfo.rc.Width();
-					graphics.DrawImage(m_pImageSeperator, Rect(nXPos, nYPos, nSepWidth, m_sizeSeperator.cy),
+					graphics.DrawImage(m_pImageSeperator, Rect(nXPos, nYPos, nSepWidth, m_sizeSeperatorDpi.cy),
 						0, 0, m_sizeSeperator.cx, m_sizeSeperator.cy, UnitPixel);
 
-					nYPos += m_sizeSeperator.cy;
+					nYPos += m_sizeSeperatorDpi.cy;
 				}
 			}
 		}

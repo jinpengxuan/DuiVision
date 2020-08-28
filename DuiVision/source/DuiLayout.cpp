@@ -20,9 +20,6 @@ CDuiLayout::CDuiLayout(HWND hWnd, CDuiObject* pDuiObject)
 	m_sizeThumb = CSize(0, 0);
 	m_nSplitWidth = 0;
 	m_bSplitImm = TRUE;
-	//m_nThumbWidth = 0;
-	//m_nThumbHeight = 0;
-	//m_nThumbPos = 0;
 }
 
 CDuiLayout::CDuiLayout(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc, int nProgress/* = 0*/, 
@@ -45,9 +42,6 @@ CDuiLayout::CDuiLayout(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect
 	m_sizeThumb = CSize(0, 0);
 	m_nSplitWidth = 0;
 	m_bSplitImm = TRUE;
-	//m_nThumbWidth = 0;
-	//m_nThumbHeight = 0;
-	//m_nThumbPos = 0;
 }
 
 CDuiLayout::~CDuiLayout(void)
@@ -213,14 +207,6 @@ void CDuiLayout::SetControlRect(CRect rc)
 	{
 		m_nSplitWidth = (m_nLayoutType == LAYOUT_TYPE_HORIZONTAL) ? m_sizeSplit.cy : m_sizeSplit.cx;
 	}
-	/*if(m_nThumbWidth == 0)
-	{
-		m_nThumbWidth = m_sizeThumb.cx;
-	}
-	if(m_nThumbHeight == 0)
-	{
-		m_nThumbHeight = m_sizeThumb.cy;
-	}*/
 
 	// 计算panel、分割线、滑块的位置
 	if(m_nLayoutType == LAYOUT_TYPE_HORIZONTAL)
@@ -274,21 +260,24 @@ void CDuiLayout::SetControlVisible(BOOL bIsVisible)
 {
 	__super::SetControlVisible(bIsVisible);
 
+	// 设置控件和子控件的原生Windows控件的可见性
+	SetControlWndVisible(bIsVisible);
+}
+
+// 重载设置控件中windows原生控件可见性的函数，需要调用子控件的函数
+void CDuiLayout::SetControlWndVisible(BOOL bIsVisible)
+{
+	__super::SetControlWndVisible(bIsVisible);
+
 	// 设置每个子控件的原生Windows控件的可见性
 	for (size_t i = 0; i < m_vecControl.size(); i++)
 	{
 		CControlBase * pControlBase = m_vecControl.at(i);
 		if (pControlBase)
 		{
-			if(pControlBase->IsClass(_T("div")) || pControlBase->IsClass(_T("tabctrl")) || pControlBase->IsClass(_T("layout")))
-			{
-				// 如果子控件是容器类型控件,则调用子控件的设置可见性函数
-				pControlBase->SetControlVisible(bIsVisible);
-			}else
-			{
-				// 判断子控件当前是否可见,根据可见性设置子控件的原生控件的可见性
-				pControlBase->SetControlWndVisible(pControlBase->GetVisible());
-			}
+			// 判断子控件当前是否可见,根据可见性设置子控件的原生控件的可见性
+			BOOL bVisible = pControlBase->GetVisible();
+			pControlBase->SetControlWndVisible(bVisible);
 		}
 	}
 }

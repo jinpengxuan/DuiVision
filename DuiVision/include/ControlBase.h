@@ -49,11 +49,19 @@ struct DUI_POSITION
     };
 };
 
+// 透明渐变类型
+enum TRANSPARENT_TYPE
+{
+	TRANSPARENT_HORIZONTAL = 0,	// 水平方向渐变
+	TRANSPARENT_VERTICAL,				// 垂直方向渐变
+};
+
 // 菜单ID定义
 #define	WM_DUI_MENU		(WM_USER + 20)	
 
 class CControlBase : public CDuiObject
 {
+	DUIOBJ_DECLARE_CLASS_NAME(CControlBase, _T("control"))
 public:
 	CControlBase(HWND hWnd, CDuiObject* pDuiObject) ;
 	CControlBase(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc, BOOL bIsVisible = TRUE, BOOL bIsDisable = FALSE , BOOL bRresponse = TRUE) ;
@@ -63,12 +71,13 @@ public:
 	virtual CDuiObject* GetParent() { return m_pParentDuiObject; }
 	void SetParent(CDuiObject* pParent) { m_pParentDuiObject = pParent; }
 	HWND GetHWND() { return m_hWnd; }
+	virtual void SetHWND(HWND hWnd);
 	HWND GetNativeHWnd() { return m_hwndHost; }
 	HWND GetPaintHWnd();
 
 	void TestMainThread();
 	void Draw(CDC &dc, CRect rcUpdate);
-	virtual void DrawControl(CDC &dc, CRect rcUpdate) = 0;
+	virtual void DrawControl(CDC &dc, CRect rcUpdate) {}
 	virtual BOOL DrawSubControls(CDC &dc, CRect rcUpdate);
 	virtual BOOL IsDraw(CPoint point) { return FALSE; }
 	virtual void SetUpdate(BOOL bUpdate, COLORREF clr = 0);
@@ -104,8 +113,6 @@ public:
 	virtual void SetControlVisible(BOOL bIsVisible) { m_bIsVisible = bIsVisible; }
 	BOOL GetVisible() { return IsControlVisible(); }
 	virtual BOOL IsControlVisible();
-	void SetHide(BOOL bIsHide);
-	virtual void SetControlHide(BOOL bIsHide) { m_bIsHide = bIsHide; }
 	virtual void SetControlWndVisible(BOOL bIsVisible) { };	// 设置控件中的Windows原生控件是否可见的状态
 	void SetDisable(BOOL bIsDisable);
 	virtual	void SetControlDisable(BOOL bIsDisable) { m_bIsDisable = bIsDisable; }
@@ -122,6 +129,9 @@ public:
 	BOOL UseImageECM() { return m_bImageUseECM; }
 	void SetDragEnable(BOOL bDragEnable) { m_bDragEnable = bDragEnable; }
 	BOOL GetDragEnable() { return m_bDragEnable; }
+	void SetDropFileEnable(BOOL bDropFileEnable) { m_bDropFileEnable = bDropFileEnable; }
+	BOOL GetDropFileEnable() { return m_bDropFileEnable; }
+	void SetShotcutKey(UINT nShortcutKey, UINT nShortcutFlag) { m_nShortcutKey = nShortcutKey; m_nShortcutFlag = nShortcutFlag; }
 
 	virtual	BOOL PtInRect(CPoint point);	// 判断坐标是否在控件范围内
 	UINT GetControlID() { return m_uID; }	// 控件ID就是DUI对象的ID
@@ -151,6 +161,7 @@ public:
 	BOOL OnLButtonDblClk(UINT nFlags, CPoint point);
 	BOOL OnScroll(BOOL bVertical, UINT nFlags, CPoint point);
 	BOOL OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
+	BOOL OnKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags);
 	BOOL OnRButtonDown(UINT nFlags, CPoint point);
 	BOOL OnRButtonUp(UINT nFlags, CPoint point);
 	BOOL OnRButtonDblClk(UINT nFlags, CPoint point);
@@ -166,10 +177,12 @@ public:
 	virtual BOOL OnControlLButtonDblClk(UINT nFlags, CPoint point){ return FALSE; }
 	virtual BOOL OnControlScroll(BOOL bVertical, UINT nFlags, CPoint point){ return FALSE; }
 	virtual BOOL OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
+	virtual BOOL OnControlKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags);
 	virtual BOOL OnControlSetDuiMsg(LPCTSTR lpszDuiMsg);
 	virtual BOOL OnControlRButtonDown(UINT nFlags, CPoint point){ return FALSE; };
 	virtual BOOL OnControlRButtonUp(UINT nFlags, CPoint point){ return FALSE; };
 	virtual BOOL OnControlRButtonDblClk(UINT nFlags, CPoint point){ return FALSE; }
+	virtual BOOL OnControlDropFile(CPoint point, CString strFileName);
 
 	virtual	BOOL OnControlTimer() { return FALSE; }
 
@@ -204,7 +217,6 @@ protected:
 	
 	CString					m_strPos;			// 位置(XML定义中的字符串)
 	BOOL					m_bIsVisible;		// 是否可见
-	BOOL					m_bIsHide;			// 是否处于隐藏状态(tab页切换时候会自动隐藏子控件)
 	BOOL					m_bIsDisable;		// 是否可用
 	BOOL					m_bRresponse;		// 是否可以响应鼠标事件
 	BOOL					m_bTabStop;			// 是否可以响应Tab键
@@ -212,6 +224,7 @@ protected:
 	BOOL					m_bDblClk;			// 是否可以响应双击事件
 	BOOL					m_bMouseDown;		// 是否鼠标按下
 	BOOL					m_bDragEnable;		// 是否允许鼠标拖动控件
+	BOOL					m_bDropFileEnable;	// 是否允许鼠标拖拽文件到此控件
 
 	UINT					m_nShortcutKey;		// 快捷键按键
 	UINT					m_nShortcutFlag;	// 快捷键扫描码
@@ -265,6 +278,8 @@ protected:
 	BOOL					m_bDuiMsgMouseRUp;	// 是否发送鼠标右键放开DUI消息
 	BOOL					m_bDuiMsgMouseRDblClk;// 是否发送鼠标右键双击DUI消息
 	BOOL					m_bDuiMsgKeyDown;	// 是否发送键盘按下DUI消息
+	BOOL					m_bDuiMsgKeyUp;		// 是否发送键盘放开DUI消息
+	BOOL					m_bDuiMsgFocusChange;// 是否发送控件焦点变化的DUI消息
 	BOOL					m_bMouseLeave;		// 鼠标是否已经离开控件
 
 	DUI_DECLARE_ATTRIBUTES_BEGIN()
@@ -274,6 +289,7 @@ protected:
 		DUI_BOOL_ATTRIBUTE(_T("response"), m_bRresponse, TRUE)
 		DUI_BOOL_ATTRIBUTE(_T("tabstop"), m_bTabStop, TRUE)
 		DUI_BOOL_ATTRIBUTE(_T("drag"), m_bDragEnable, TRUE)
+		DUI_BOOL_ATTRIBUTE(_T("dropfile"), m_bDropFileEnable, TRUE)
 		DUI_CUSTOM_ATTRIBUTE(_T("pos"), OnAttributePosChange)
 		DUI_CUSTOM_ATTRIBUTE(_T("width"), OnAttributeWidth)
 		DUI_CUSTOM_ATTRIBUTE(_T("height"), OnAttributeHeight)
@@ -331,6 +347,7 @@ enum {
 // 具有文字的控件基类
 class CControlBaseFont : public CControlBase
 {
+	DUIOBJ_DECLARE_CLASS_NAME(CControlBaseFont, _T("controlfont"))
 public:
 	CControlBaseFont(HWND hWnd, CDuiObject* pDuiObject);
 	CControlBaseFont(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc, CString strTitle, BOOL bIsVisible = TRUE, BOOL bIsDisable = FALSE , BOOL bRresponse = TRUE,
@@ -366,9 +383,11 @@ protected:
 	FontStyle				m_fontStyle;		// 字体Style
 	UINT					m_uAlignment;		// 水平对齐方式
 	UINT					m_uVAlignment;		// 垂直对齐方式
+	BOOL					m_bEllipsisCharacter;// 字符串结尾超出范围是否显示省略号
 
 	Image*					m_pImage;			// 图片
 	CSize					m_sizeImage;		// 图片大小
+	CSize					m_sizeImageDpi;		// 图片大小(DPI适配后的大小)
 	int						m_nImagePicCount;	// Image中默认包含的图片个数
 
 	DUI_DECLARE_ATTRIBUTES_BEGIN()
@@ -389,5 +408,6 @@ protected:
 		DUI_CUSTOM_ATTRIBUTE(_T("image"), OnAttributeImage)
 		DUI_CUSTOM_ATTRIBUTE(_T("skin"), OnAttributeSkin)
 		DUI_INT_ATTRIBUTE(_T("img-count"), m_nImagePicCount, FALSE)
+		DUI_BOOL_ATTRIBUTE(_T("ellipsis"), m_bEllipsisCharacter, TRUE)
     DUI_DECLARE_ATTRIBUTES_END()
 };

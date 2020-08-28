@@ -43,6 +43,7 @@ protected:
 
 	Image*			m_pImage;
 	CSize			m_sizeBKImage;
+	CSize			m_sizeBKImageDpi;
 	CPoint			m_point;
 	CSize			m_size;
 	UINT			m_uMessageID;
@@ -89,6 +90,9 @@ public:
 	void SetAutoClose(BOOL bAutoClose) { m_bAutoClose = bAutoClose; }
 	BOOL IsAutoClose() { return m_bAutoClose; }
 
+	CSize& GetSize() {return m_size;}
+	void SetSize(CSize&sz){ m_size = sz;}
+
 	BOOL UseImageECM() { return m_bImageUseECM; }
 
 	virtual void InitUI(CRect rcClient, DuiXmlNode pNode);
@@ -110,7 +114,7 @@ public:
 	void DrawWindow(CDC *pDC);
 	virtual void DrawWindow(CDC &dc, CRect rcClient){};
 	virtual void DrawWindowEx(CDC &dc, CRect rcClient){};
-	virtual void InitUI(CRect rcClient) {};
+	virtual void InitUI(CRect rcClient);
 	virtual BOOL OnMouseMove(CPoint point){ return false;};
 	virtual BOOL OnLButtonDown(CPoint point){ return false;};
 	virtual BOOL OnLButtonUp(CPoint point){ return false;};
@@ -119,6 +123,7 @@ public:
 	virtual BOOL OnRButtonUp(CPoint point){ return false;};
 	virtual BOOL OnRButtonDblClk(CPoint point){ return false;};
 	virtual BOOL OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags){ return false;};
+	virtual BOOL OnControlKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags){ return false;};
 
 	HRESULT OnAttributeBkMode(const CString& strValue, BOOL bLoading);
 	HRESULT OnAttributeBkImage(const CString& strValue, BOOL bLoading);
@@ -183,6 +188,7 @@ protected:
 	afx_msg void OnRButtonUp(UINT nFlags, CPoint point);
 	afx_msg void OnRButtonDblClk(UINT nFlags, CPoint point);
 	afx_msg void OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
+	afx_msg void OnKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags);
 
 	DECLARE_MESSAGE_MAP()
 	virtual void PostNcDestroy();
@@ -196,8 +202,8 @@ public:
 		DUI_CUSTOM_ATTRIBUTE(_T("bkimg"), OnAttributeBkImage)
 		DUI_INT_ATTRIBUTE(_T("bkalpha"), m_bBackAlpha, TRUE)
 		DUI_INT_ATTRIBUTE(_T("translucent"), m_nBackTranslucent, TRUE)
-		DUI_INT_ATTRIBUTE(_T("width"), m_size.cx, FALSE)
-		DUI_INT_ATTRIBUTE(_T("height"), m_size.cy, FALSE)
+		DUI_INT_ATTRIBUTE_DPI(_T("width"), m_size.cx, FALSE)
+		DUI_INT_ATTRIBUTE_DPI(_T("height"), m_size.cy, FALSE)
 		DUI_INT_ATTRIBUTE(_T("framesize"), m_nFrameSize, FALSE)
 		DUI_INT_ATTRIBUTE(_T("width-lt"), m_nFrameWLT, FALSE)
 		DUI_INT_ATTRIBUTE(_T("height-lt"), m_nFrameHLT, FALSE)

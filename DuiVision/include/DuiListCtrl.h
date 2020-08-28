@@ -18,9 +18,11 @@ struct ListRowInfo
 	int		nImageIndex;	// 图片索引
 	Image * pImage;			// 图片对象
 	CSize	sizeImage;		// 图片大小
+	CSize	sizeImageDpi;	// 图片大小(DPI适配的)
 	int		nRightImageIndex;// 右边图片索引
 	Image * pRightImage;	// 右边图片对象
 	CSize	sizeRightImage;	// 右边图片大小
+	CSize	sizeRightImageDpi;	// 右边图片大小(DPI适配的)
 	BOOL	bRowColor;		// 使用行定义的文字颜色
 	Color	clrText;		// 行文字颜色
 	BOOL	bRowBackColor;		// 使用行定义的背景颜色
@@ -32,6 +34,7 @@ struct ListRowInfo
 	CString strLinkAction2;	// 链接2的动作
 	CRect	rcLink2;		// 链接2位置信息
 	int		nHoverLink;		// 当前处于热点状态的链接索引
+	DWORD   dwData;      // 关联用户数据
 	BOOL	bNeedTitleTip;	// 是否需要显示title tip(title实际宽度大于显示宽度)
 	BOOL	bNeedContentTip;// 是否需要显示content tip(content实际宽度大于显示宽度)
 };
@@ -60,11 +63,15 @@ public:
 	void CalcItemsPos();
 	BOOL EnsureVisible(int nRow, BOOL bPartialOK);
 	int  GetItemCount() { return m_vecRowInfo.size(); }
+	int  GetCurrentItem() { return m_nDownRow; }
+	int  GetItemById(CString strItemId);
 	ListRowInfo* GetItemInfo(int nRow);
 	void SetRowColor(int nRow, Color clrText);
 	void SetRowBackColor(int nRow, Color clrBack);
 	void SetRowCheck(int nRow, int nCheck);
 	int  GetRowCheck(int nRow);
+	void SetRowData(int nRow, DWORD dwData);
+	DWORD GetRowData(int nRow);
 	void ClearItems();
 
 	BOOL PtInRow(CPoint point, ListRowInfo& rowInfo);
@@ -85,6 +92,7 @@ protected:
 	virtual BOOL OnControlLButtonUp(UINT nFlags, CPoint point);
 	virtual BOOL OnControlLButtonDblClk(UINT nFlags, CPoint point);
 	virtual BOOL OnControlScroll(BOOL bVertical, UINT nFlags, CPoint point);
+	virtual BOOL OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
 
 	HRESULT OnAttributeFontTitle(const CString& strValue, BOOL bLoading);
 
@@ -101,10 +109,12 @@ public:
 	Color				m_clrTitle;			// 标题颜色
 	Color				m_clrSeperator;		// 分割线颜色
 	Color				m_clrRowHover;		// 行背景颜色(鼠标移动到行)
+	Color				m_clrRowCurrent;	// 行背景颜色(当前行)
 	int					m_nRowHeight;		// 行高度
 	int					m_nBkTransparent;	// 背景透明度
 	BOOL				m_bSingleLine;		// 显示单行文字
 	BOOL				m_bTextWrap;		// 文字是否换行
+	BOOL				m_bSingleCheck;		// 行检查框是否单选模式
 
 	int					m_nHoverRow;		// 当前鼠标移动的行索引
 	int					m_nDownRow;			// 当前点击的行索引
@@ -119,7 +129,7 @@ public:
 	int					m_nTipVirtualTop;	// 当前tip行的虚拟Top
 
 	DUI_IMAGE_ATTRIBUTE_DEFINE(Seperator);	// 定义行分隔线图片
-	DUI_IMAGE_ATTRIBUTE_DEFINE(CheckBox);	// 定义检查框图片
+	DUI_IMAGE_ATTRIBUTE_DEFINE_DPI(CheckBox);	// 定义检查框图片
 	DUI_DECLARE_ATTRIBUTES_BEGIN()
 		DUI_CUSTOM_ATTRIBUTE(_T("img-sep"), OnAttributeImageSeperator)
 		DUI_CUSTOM_ATTRIBUTE(_T("img-check"), OnAttributeImageCheckBox)
@@ -130,10 +140,12 @@ public:
 		DUI_COLOR_ATTRIBUTE(_T("crtitle"), m_clrTitle, FALSE)
 		DUI_COLOR_ATTRIBUTE(_T("crsep"), m_clrSeperator, FALSE)
 		DUI_COLOR_ATTRIBUTE(_T("crrowhover"), m_clrRowHover, FALSE)
-		DUI_INT_ATTRIBUTE(_T("row-height"), m_nRowHeight, FALSE)
+		DUI_COLOR_ATTRIBUTE(_T("crrowcurrent"), m_clrRowCurrent, FALSE)
+		DUI_INT_ATTRIBUTE_DPI(_T("row-height"), m_nRowHeight, FALSE)
 		DUI_INT_ATTRIBUTE(_T("wrap"), m_bTextWrap, FALSE)
 		DUI_INT_ATTRIBUTE(_T("down-row"), m_bEnableDownRow, FALSE)
 		DUI_INT_ATTRIBUTE(_T("bk-transparent"), m_nBkTransparent, FALSE)
 		DUI_INT_ATTRIBUTE(_T("row-tip"), m_bRowTooltip, FALSE)
+		DUI_BOOL_ATTRIBUTE(_T("single-check"), m_bSingleCheck, TRUE)
     DUI_DECLARE_ATTRIBUTES_END()
 };

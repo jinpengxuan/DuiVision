@@ -91,6 +91,7 @@ void CDuiHandlerMain::OnInit()
 	CDuiGridCtrl* pGridCtrl = (CDuiGridCtrl*)GetControl(_T("gridctrl_1"));
 	if(pGridCtrl)
 	{
+		// 添加链接按钮
 		CLinkButton* pControl = (CLinkButton*)DuiSystem::CreateControlByName(_T("linkbtn"), NULL, NULL);
 		if(pControl)
 		{
@@ -99,6 +100,17 @@ void CDuiHandlerMain::OnInit()
 			pControl->SetTitle(_T("更新内容"));
 			pControl->SetLink(_T("http://www.blueantstudio.net"));
 			pGridCtrl->AddSubItemControl(1, 0, pControl);
+		}
+
+		// 添加输入框
+		CDuiEdit* pControlEdit = (CDuiEdit*)DuiSystem::CreateControlByName(_T("edit"), m_pDlg->GetSafeHwnd(), NULL);
+		if(pControlEdit)
+		{
+			pControlEdit->SetName(_T("edit_gridctrl_btnName"));
+			pControlEdit->SetTitle(_T("100"));
+			pControlEdit->SetPosStr(_T("220, 10, -20, 40"));
+			pControlEdit->OnAttributeSkin(_T("skin:IDB_EDIT"), TRUE);
+			pGridCtrl->AddSubItemControl(4, 0, pControlEdit);
 		}
 	}
 
@@ -132,7 +144,7 @@ void CDuiHandlerMain::OnInit()
 	CDuiTreeCtrl* pTreeCtrl = (CDuiTreeCtrl*)GetControl(_T("treectrl_1"));
 	if(pTreeCtrl)
 	{
-		HTREEITEM hNode = pTreeCtrl->GetNodeById(_T("1-0"));
+		HDUITREEITEM hNode = pTreeCtrl->GetNodeById(_T("1-0"));
 		CLinkButton* pControl = (CLinkButton*)DuiSystem::CreateControlByName(_T("linkbtn"), NULL, NULL);
 		if(pControl)
 		{
@@ -148,7 +160,7 @@ void CDuiHandlerMain::OnInit()
 	pTreeCtrl = (CDuiTreeCtrl*)GetControl(_T("treectrl_1"));
 	if(pTreeCtrl)
 	{
-		HTREEITEM hNode = pTreeCtrl->GetNodeById(_T("2-7-1-1-1"));
+		HDUITREEITEM hNode = pTreeCtrl->GetNodeById(_T("2-7-1-1-1"));
 		pTreeCtrl->EnsureVisible(hNode, TRUE);
 	}
 
@@ -168,6 +180,13 @@ void CDuiHandlerMain::OnInit()
 			pControlEdit->OnPositionChange();
 		}
 	}
+}
+
+// Windows关机重启消息处理
+LRESULT CDuiHandlerMain::OnDuiMsgQueryEndSession(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam)
+{
+	// 如果返回1,则表示不允许Windows关机
+	return FALSE;
 }
 
 // 皮肤消息处理(实现皮肤的保存和获取)
@@ -507,15 +526,78 @@ LRESULT CDuiHandlerMain::OnDuiMsgGridCtrlDblClick(UINT uID, CString strName, UIN
 	}
 	return TRUE;
 }
+/*
+//
+// 删除gridctrl行的任务类
+//
+class CDuiDeleteGridRowTask : public DuiVision::IBaseTask
+{
+public:
+	CDuiDeleteGridRowTask(LONG type, CDuiGridCtrl* pGridCtrl, int nRow)
+		: DuiVision::IBaseTask(type), m_pGridCtrl(pGridCtrl), m_nRow(nRow)
+	{
+		SetUITask(TRUE);	// 设置为需要转UI线程处理的任务
+	}
 
+	// 任务处理
+	virtual BOOL TaskProcess(DuiVision::CTaskMgr *pMgr)
+	{
+		if(m_pGridCtrl != NULL)
+		{
+			m_pGridCtrl->DeleteRow(m_nRow);
+		}
+		return TRUE;
+	}
+
+protected:
+	CDuiGridCtrl*	m_pGridCtrl;	// Grid控件对象
+	int				m_nRow;			// 删除的行
+};
+*/
 // 表格控件的删除按钮子控件点击消息处理
 LRESULT CDuiHandlerMain::OnDuiMsgGridCtrlDelBtnClick(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
 	// 点击了表格控件的删除行按钮子控件
 	CDlgBase* pDlg = GetControlDialog(uID);
 	CDuiGridCtrl* pGridCtrl = (CDuiGridCtrl*)GetControl(_T("gridctrl_1"));
-	pGridCtrl->DeleteRow(3);
+	pGridCtrl->DeleteRow(2);
+	/*DuiVision::CTaskMgr* pTaskMgr = DuiSystem::Instance()->GetTaskMgr();
+	if(pTaskMgr)
+	{
+		pTaskMgr->AddTask(new CDuiDeleteGridRowTask(2, pGridCtrl, 2));
+		pTaskMgr->StartTask();
+	}*/
 	
+	return TRUE;
+}
+
+// 拖拽文件到表格控件消息处理
+LRESULT CDuiHandlerMain::OnDuiMsgGridCtrlDropFile(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam)
+{
+	// 拖拽消息的wParam表格鼠标位置，lParam表示当前拖拽的文件全路径名
+	CDuiGridCtrl* pGridCtrl = (CDuiGridCtrl*)GetControl(_T("gridctrl_1"));
+	CPoint* pptDropFile = (CPoint*)wParam;
+	CString* pstrDropFile = (CString*)lParam;
+	// 截取文件名
+	CString strFileName = *pstrDropFile;
+	int nPos = strFileName.ReverseFind(_T('\\'));
+	strFileName.Delete(0, nPos+1);
+	// 在表格中插入一行文件信息
+	if(pGridCtrl)
+	{
+		CString strId = *pstrDropFile;
+		int nRow = pGridCtrl->InsertRow(-1,	// 插入的行序号,-1表示添加到最后
+			strId,							// 行id字符串
+			-1,								// 行左侧图片(索引图片方式,无索引图片填-1)
+			Color(0, 0, 0, 0),				// 行文字颜色,全0表示默认(不使用行文字颜色,使用表格全局颜色)
+			_T("skins\\icon\\NewIcons005.png"),	// 行左侧的图片文件
+			-1,								// 行右侧图片(索引图片方式,无索引图片填-1)
+			_T(""),							// 行右侧的图片文件
+			0);
+		pGridCtrl->SetSubItem(nRow, 0, strFileName, *pstrDropFile, TRUE);
+		pGridCtrl->SetSubItem(nRow, 1, _T("文件"));
+	}
+
 	return TRUE;
 }
 
@@ -523,7 +605,7 @@ LRESULT CDuiHandlerMain::OnDuiMsgGridCtrlDelBtnClick(UINT uID, CString strName, 
 LRESULT CDuiHandlerMain::OnDuiMsgTreeCtrlClick(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
 	CDuiTreeCtrl* pTreeCtrl = (CDuiTreeCtrl*)GetControl(_T("treectrl_1"));
-	HTREEITEM hNode = (HTREEITEM)wParam;	// 树节点句柄	
+	HDUITREEITEM hNode = (HDUITREEITEM)wParam;	// 树节点句柄	
 	int nItem = lParam;	// 点击的树控件的第几列
 	if(nItem == 0)
 	{
@@ -538,7 +620,7 @@ LRESULT CDuiHandlerMain::OnDuiMsgTreeCtrlDblClick(UINT uID, CString strName, UIN
 {
 	// 双击了树控件某一节点,传入参数中wParam表示控件节点索引
 	CDuiTreeCtrl* pTreeCtrl = (CDuiTreeCtrl*)GetControl(_T("treectrl_1"));
-	HTREEITEM hNode = (HTREEITEM)wParam;	// 树节点句柄
+	HDUITREEITEM hNode = (HDUITREEITEM)wParam;	// 树节点句柄
 	int nItem = lParam;	// 点击的树控件的第几列
 	TreeItemInfo* pItemInfo = pTreeCtrl->GetItemInfo(hNode, nItem);
 	if(pItemInfo)

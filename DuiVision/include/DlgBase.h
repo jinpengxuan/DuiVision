@@ -78,14 +78,15 @@ protected:
 
 	int				m_nOverRegioX;				// 过度的大小
 	int				m_nOverRegioY;				// 过度的大小
-	BOOL			m_bNCActive;
+	BOOL			m_bNCActive;				// 窗口当前是否处于激活状态
 
-	BOOL			m_bTracking;
-	BOOL			m_bIsLButtonDown;	
-	BOOL			m_bIsLButtonDblClk;
-	BOOL			m_bIsRButtonDown;
-	BOOL			m_bIsRButtonDblClk;
-	BOOL			m_bIsSetCapture;
+	BOOL			m_bTracking;				// 是否追踪鼠标事件
+	BOOL			m_bIsLButtonDown;			// 鼠标左键按下
+	BOOL			m_bIsLButtonDblClk;			// 鼠标左键双击
+	BOOL			m_bIsRButtonDown;			// 鼠标右键按下
+	BOOL			m_bIsRButtonDblClk;			// 鼠标右键双击
+	BOOL			m_bIsSetCapture;			// 是否设置了鼠标捕获
+	BOOL			m_bEnableWndDrag;			// 是否允许窗口拖动
 
 	BOOL			m_bAutoClose;				// 窗口自动关闭标志
 	BOOL			m_bAutoHide;				// 窗口自动隐藏标志
@@ -101,7 +102,7 @@ protected:
 
 	vector<CControlBase*>	m_vecControl;		// 用户添加的窗口控件
 	vector<CControlBase*>	m_vecArea;			// 用户添加的区域(不影响鼠标事件)
-	CControlBase*	m_pControl;				// 当前活动控件对象
+	CControlBase*	m_pControl;					// 当前活动控件对象
 	CControlBase*	m_pFocusControl;			// 当前焦点的控件对象
 
 	vector<CONTROL_VALUE>	m_vecControlValue;	// 控件预设置信息
@@ -184,6 +185,8 @@ public:
 	void OpenDlgPopup(CDlgPopup *pWndPopup, CRect rc, UINT uMessageID, BOOL bShow=TRUE);
 	// 关闭弹出对话框
 	void CloseDlgPopup();
+	//获取弹出对话框
+	CDlgPopup * GetDlgPopUp();
 
 	// 根据控件名创建控件实例
 	CControlBase* _CreateControlByName(LPCTSTR lpszName);
@@ -198,8 +201,6 @@ public:
 	// 加载窗口背景图片
 	void LoadBackgroundImage(UINT nIDResource, CString strType = TEXT("PNG"));
 	void LoadBackgroundImage(CString strFileName);
-	// 初始化窗口控件的默认值
-	void InitUIState();
 	// 设置窗口背景透明度
 	void SetupBackTranslucent();
 	// 设置不规则窗体区域
@@ -245,6 +246,11 @@ public:
 	virtual LRESULT OnControlUpdate(CRect rcUpdate, BOOL bUpdate = false, CControlBase *pControlBase = NULL);
 	virtual LRESULT OnMessage(UINT uID, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+	// 增加注册消息的接口
+	std::map<UINT,CString> m_mapMsg;
+	void RegisterMsg(UINT msg,CString strMsgName){
+		m_mapMsg.insert(std::make_pair(msg,strMsgName));
+	}
 protected:
 	virtual void OnClose();
 	virtual void OnMinimize();
@@ -269,6 +275,7 @@ protected:
 	afx_msg void OnWindowPosChanged(WINDOWPOS* lpwndpos);
 
 	afx_msg LRESULT OnUserCloseWindow(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnQueryEndSession(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnMessageSkin(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnMessageUITask(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT	OnSystemTrayIcon(WPARAM wParam, LPARAM lParam);
@@ -327,6 +334,7 @@ public:
 		DUI_INT_ATTRIBUTE(_T("shadow-hrb"), m_nShadowHRB, FALSE)
 		DUI_INT_ATTRIBUTE(_T("shadow-size"), m_nShadowSize, FALSE)
 		DUI_INT_ATTRIBUTE(_T("topmost"), m_bTopMost, FALSE)
+		DUI_INT_ATTRIBUTE(_T("wnd-drag"), m_bEnableWndDrag, FALSE)
 	DUI_DECLARE_ATTRIBUTES_END()
 };
 

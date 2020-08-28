@@ -1,5 +1,6 @@
 #include "StdAfx.h"
 #include "DuiListCtrl.h"
+#include <algorithm>
 
 #define	SCROLL_V	1	// 垂直滚动条控件ID
 #define	SCROLL_H	2	// 水平滚动条控件ID
@@ -10,6 +11,8 @@ CDuiGridCtrl::CDuiGridCtrl(HWND hWnd, CDuiObject* pDuiObject)
 {
 	m_strFontTitle = DuiSystem::GetDefaultFont();
 	m_nFontTitleWidth = 12;
+	// 按照当前DPI计算字体的显示大小
+	CDuiWinDwmWrapper::AdapterDpi(m_nFontTitleWidth);
 	m_fontTitleStyle = FontStyleRegular;
 	m_uAlignmentHeader = Align_Center;
 	m_uVAlignmentHeader = VAlign_Middle;
@@ -21,12 +24,15 @@ CDuiGridCtrl::CDuiGridCtrl(HWND hWnd, CDuiObject* pDuiObject)
 	m_clrTitle = Color(255, 32, 32, 32);
 	m_clrSeperator = Color(0, 0, 0, 0);
 	m_clrRowHover = Color(0, 128, 128, 128);	// 鼠标移动到行显示的背景色,默认是透明色
+	m_clrRowCurrent = Color(0, 128, 128, 128);	// 当前行显示的背景色,默认是透明色
 	m_nRowHeight = 50;
 	m_nHeaderHeight = 0;
 	m_nLeftPos = 0;
 
 	m_pImageHeader = NULL;
 	m_sizeHeader = CSize(0, 0);
+	m_pImageHeaderSort = NULL;
+	m_sizeHeaderSort = CSize(0, 0);
 	m_pImageColumnSeperator = NULL;
 	m_sizeColumnSeperator = CSize(0, 0);
 	m_pImageSeperator = NULL;
@@ -44,6 +50,11 @@ CDuiGridCtrl::CDuiGridCtrl(HWND hWnd, CDuiObject* pDuiObject)
 	m_bSingleLine = TRUE;
 	m_bTextWrap = FALSE;
 	m_bShowColumnSeperator = FALSE;
+	m_bSingleCheck = FALSE;
+
+	m_bHoverHeaderCheck = false;
+	m_nHeaderCheck = -1;
+	m_rcHeaderCheck.SetRect(0, 0, 0, 0);
 
 	m_bGridTooltip = TRUE;
 	m_nTipRow = -1;
@@ -59,6 +70,11 @@ CDuiGridCtrl::CDuiGridCtrl(HWND hWnd, CDuiObject* pDuiObject)
 	m_nLastViewRow = 0;
 	m_nVirtualTop = 0;
 	m_nVirtualLeft = 0;
+
+	m_bSortOnClick = FALSE; // Sort on header row click
+	m_bAscending = TRUE;    // sorting stuff
+    m_nSortColumn = -1;
+	m_pfnCompare = NULL;
 }
 
 CDuiGridCtrl::~CDuiGridCtrl(void)
@@ -67,6 +83,11 @@ CDuiGridCtrl::~CDuiGridCtrl(void)
 	{
 		delete m_pImageHeader;
 		m_pImageHeader = NULL;
+	}
+	if(m_pImageHeaderSort != NULL)
+	{
+		delete m_pImageHeaderSort;
+		m_pImageHeaderSort = NULL;
 	}
 	if(m_pImageColumnSeperator != NULL)
 	{
@@ -87,6 +108,7 @@ CDuiGridCtrl::~CDuiGridCtrl(void)
 
 // 图片属性的实现
 DUI_IMAGE_ATTRIBUTE_IMPLEMENT(CDuiGridCtrl, Header, 1)
+DUI_IMAGE_ATTRIBUTE_IMPLEMENT(CDuiGridCtrl, HeaderSort, 8)
 DUI_IMAGE_ATTRIBUTE_IMPLEMENT(CDuiGridCtrl, ColumnSeperator, 1)
 DUI_IMAGE_ATTRIBUTE_IMPLEMENT(CDuiGridCtrl, Seperator, 1)
 DUI_IMAGE_ATTRIBUTE_IMPLEMENT(CDuiGridCtrl, CheckBox, 6)
@@ -122,7 +144,7 @@ BOOL CDuiGridCtrl::Load(DuiXmlNode pXmlElem, BOOL bLoadSubControl)
 		int nWidth = -1;
 		if(!strWidth.IsEmpty())
 		{
-			nWidth = _ttoi(strWidth);
+			nWidth = DUI_DPI_X(_ttoi(strWidth));
 		}
 		UINT uAlignment = 0xFFFFUL;
 		if(strAlign == _T("left"))
@@ -333,7 +355,7 @@ BOOL CDuiGridCtrl::InsertColumn(int nColumn, CString strTitle, int nWidth, Color
 			nWidth = m_rc.Width() - nXPos;
 			if(nWidth < 0)
 			{
-				nWidth = 100;	// 如果宽度不够,设置一个最小值
+				nWidth = DUI_DPI_X(100);	// 如果宽度不够,设置一个最小值
 			}
 		}
 		columnInfoTemp.rcHeader.SetRect(nXPos, nYPos, nXPos + nWidth, nYPos + m_nRowHeight);
@@ -390,6 +412,15 @@ int CDuiGridCtrl::SetColumnWidth(int nColumn, int nWidth, int nWidthNextColumn)
 	UpdateControl(true);
 
 	return nWidthResult;
+}
+
+int CDuiGridCtrl::GetColumnWidth(UINT nColumn)
+{
+	if (nColumn >= m_vecColumnInfo.size())
+	{
+		return -1;
+	}else
+		return m_vecColumnInfo.at(nColumn).nWidth;
 }
 
 // 移动列分隔线位置
@@ -481,6 +512,8 @@ int CDuiGridCtrl::InsertRow(int nRow, CString strId, int nImageIndex, Color clrT
 		if(DuiSystem::Instance()->LoadImageFile(strImage, m_bImageUseECM, rowInfo.pImage))
 		{
 			rowInfo.sizeImage.SetSize(rowInfo.pImage->GetWidth() / 1, rowInfo.pImage->GetHeight());
+			rowInfo.sizeImageDpi = rowInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(rowInfo.sizeImageDpi.cx, rowInfo.sizeImageDpi.cy);
 		}
 	}else
 	{
@@ -489,6 +522,8 @@ int CDuiGridCtrl::InsertRow(int nRow, CString strId, int nImageIndex, Color clrT
 		if((rowInfo.nImageIndex != -1) && (m_pImage != NULL) && (m_pImage->GetLastStatus() == Ok))
 		{
 			rowInfo.sizeImage.SetSize(m_sizeImage.cx, m_sizeImage.cy);
+			rowInfo.sizeImageDpi = rowInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(rowInfo.sizeImageDpi.cx, rowInfo.sizeImageDpi.cy);
 		}
 	}
 
@@ -499,6 +534,8 @@ int CDuiGridCtrl::InsertRow(int nRow, CString strId, int nImageIndex, Color clrT
 		if(DuiSystem::Instance()->LoadImageFile(strRightImage, m_bImageUseECM, rowInfo.pRightImage))
 		{
 			rowInfo.sizeRightImage.SetSize(rowInfo.pRightImage->GetWidth() / 1, rowInfo.pRightImage->GetHeight());
+			rowInfo.sizeRightImageDpi = rowInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(rowInfo.sizeRightImageDpi.cx, rowInfo.sizeRightImageDpi.cy);
 		}
 	}else
 	{
@@ -507,6 +544,8 @@ int CDuiGridCtrl::InsertRow(int nRow, CString strId, int nImageIndex, Color clrT
 		if((rowInfo.nRightImageIndex != -1) && (m_pImage != NULL) && (m_pImage->GetLastStatus() == Ok))
 		{
 			rowInfo.sizeRightImage.SetSize(m_sizeImage.cx, m_sizeImage.cy);
+			rowInfo.sizeRightImageDpi = rowInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(rowInfo.sizeRightImageDpi.cx, rowInfo.sizeRightImageDpi.cy);
 		}
 	}
 
@@ -586,6 +625,8 @@ BOOL CDuiGridCtrl::SetSubItem(int nRow, int nItem, CString strTitle, CString str
 		if(DuiSystem::Instance()->LoadImageFile(strImage, m_bImageUseECM, itemInfo.pImage))
 		{
 			itemInfo.sizeImage.SetSize(itemInfo.pImage->GetWidth() / 1, itemInfo.pImage->GetHeight());
+			itemInfo.sizeImageDpi = itemInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy);
 		}
 	}else
 	{
@@ -594,6 +635,8 @@ BOOL CDuiGridCtrl::SetSubItem(int nRow, int nItem, CString strTitle, CString str
 		if((itemInfo.nImageIndex != -1) && (m_pImage != NULL) && (m_pImage->GetLastStatus() == Ok))
 		{
 			itemInfo.sizeImage.SetSize(m_sizeImage.cx, m_sizeImage.cy);
+			itemInfo.sizeImageDpi = itemInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy);
 		}
 	}
 
@@ -651,6 +694,8 @@ BOOL CDuiGridCtrl::SetSubItemLink(int nRow, int nItem, CString strLink, CString 
 		if(DuiSystem::Instance()->LoadImageFile(strImage, m_bImageUseECM, itemInfo.pImage))
 		{
 			itemInfo.sizeImage.SetSize(itemInfo.pImage->GetWidth() / 1, itemInfo.pImage->GetHeight());
+			itemInfo.sizeImageDpi = itemInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy);
 		}
 	}else
 	{
@@ -659,6 +704,8 @@ BOOL CDuiGridCtrl::SetSubItemLink(int nRow, int nItem, CString strLink, CString 
 		if((itemInfo.nImageIndex != -1) && (m_pImage != NULL) && (m_pImage->GetLastStatus() == Ok))
 		{
 			itemInfo.sizeImage.SetSize(m_sizeImage.cx, m_sizeImage.cy);
+			itemInfo.sizeImageDpi = itemInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy);
 		}
 	}
 
@@ -882,6 +929,21 @@ BOOL CDuiGridCtrl::EnsureVisible(int nRow, BOOL bPartialOK)
 	return TRUE;
 }
 
+// 根据行ID获取行索引
+int CDuiGridCtrl::GetRowById(CString strRowId)
+{
+	for (size_t i = 0; i < m_vecRowInfo.size(); i++)
+	{
+		GridRowInfo& rowInfo = m_vecRowInfo.at(i);
+		if (rowInfo.strId == strRowId)
+		{
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 // 获取某一个行信息
 GridRowInfo* CDuiGridCtrl::GetRowInfo(int nRow)
 {
@@ -916,6 +978,18 @@ GridItemInfo* CDuiGridCtrl::GetItemInfo(int nRow, int nItem)
 	GridItemInfo &itemInfo = rowInfo.vecItemInfo.at(nItem);
 
 	return &itemInfo;
+}
+
+// 获取某一个单元格的文字内容
+CString CDuiGridCtrl::GetItemText(int nRow, int nItem)
+{
+	GridItemInfo* pGridInfo = GetItemInfo(nRow, nItem);
+	if(pGridInfo)
+	{
+		return pGridInfo->strTitle;
+	}
+
+	return _T("");
 }
 
 // 设置某一个行的文字颜色
@@ -966,6 +1040,28 @@ int CDuiGridCtrl::GetRowCheck(int nRow)
 
 	GridRowInfo &rowInfo = m_vecRowInfo.at(nRow);
 	return rowInfo.nCheck;
+}
+
+void CDuiGridCtrl::SetRowData(int nRow, DWORD dwData)
+{
+	if((nRow < 0) || (nRow >= (int)m_vecRowInfo.size()))
+	{
+		return;
+	}
+
+	GridRowInfo &rowInfo = m_vecRowInfo.at(nRow);
+	rowInfo.dwData = dwData;
+}
+
+DWORD CDuiGridCtrl::GetRowData(int nRow)
+{
+	if((nRow < 0) || (nRow >= (int)m_vecRowInfo.size()))
+	{
+		return NULL;
+	}
+
+	GridRowInfo &rowInfo = m_vecRowInfo.at(nRow);
+	return rowInfo.dwData;
 }
 
 // 清空列表
@@ -1135,6 +1231,226 @@ void CDuiGridCtrl::ClearGridTooltip()
 	}
 }
 
+// 设置排序的列
+void CDuiGridCtrl::SetSortColumn(int nCol)
+{
+    m_nSortColumn = nCol;
+}
+
+// 针对指定的列按照单元格文字进行排序
+BOOL CDuiGridCtrl::SortTextItems(int nCol, BOOL bAscending)
+{
+    SetSortColumn(nCol);
+    SetSortAscending(bAscending);
+    //ResetSelectedRange();
+    //SetFocusCell(-1, - 1);
+
+	// 排序所有行
+    BOOL bSort = SortTextItems(nCol, bAscending, 0, -1);
+
+	// 重新计算所有行的位置
+	CalcRowsPos();
+
+	UpdateControl(TRUE);
+
+	return bSort;
+}
+
+// 单元格文字排序的递归实现
+BOOL CDuiGridCtrl::SortTextItems(int nCol, BOOL bAscending, int low, int high)
+{
+#if __cplusplus < 201103L
+	if (nCol >= GetColumnCount())
+		return FALSE;
+
+	if (high == -1)
+		high = GetRowCount() - 1;
+
+	int lo = low;
+	int hi = high;
+
+	if (hi <= lo)
+		return FALSE;
+
+	CString midItem = GetItemText((lo + hi)/2, nCol);
+
+	// loop through the list until indices cross
+	while (lo <= hi)
+	{
+		// Find the first element that is greater than or equal to the partition 
+		// element starting from the left Index.
+		if (bAscending)
+			while (lo < high  && GetItemText(lo, nCol) < midItem)
+				++lo;
+		else
+			while (lo < high && GetItemText(lo, nCol) > midItem)
+				++lo;
+
+		// Find an element that is smaller than or equal to  the partition 
+		// element starting from the right Index.
+		if (bAscending)
+			while (hi > low && GetItemText(hi, nCol) > midItem)
+				--hi;
+		else
+			while (hi > low && GetItemText(hi, nCol) < midItem)
+				--hi;
+
+		// If the indexes have not crossed, swap if the items are not equal
+		if (lo <= hi)
+		{
+			// swap only if the items are not equal
+			if (GetItemText(lo, nCol) != GetItemText(hi, nCol))
+			{
+				// 交换行
+				swap(m_vecRowInfo[lo], m_vecRowInfo[hi]);
+			}
+
+			++lo;
+			--hi;
+		}
+	}
+
+	// If the right index has not reached the left side of array
+	// must now sort the left partition.
+	if (low < hi)
+		SortTextItems(nCol, bAscending, low, hi);
+
+	// If the left index has not reached the right side of array
+	// must now sort the right partition.
+	if (lo < high)
+		SortTextItems(nCol, bAscending, lo, high);
+
+	return TRUE;
+#else
+	// 以下代码使用了C++11新的lamda特性,只在VC2012以上版本使用
+	if (nCol >= GetColumnCount())
+		return FALSE;
+	std::sort(m_vecRowInfo.begin(), m_vecRowInfo.end(), 
+		[=](GridRowInfo & a, GridRowInfo & b) -> bool 
+	{
+		GridItemInfo *pInfo1 =  &(a.vecItemInfo.at(nCol));
+		GridItemInfo *pInfo2 = &(b.vecItemInfo.at(nCol));
+		int nResult = pInfo1->strTitle.Compare(pInfo2->strTitle);
+		if (bAscending)
+		{
+			return (nResult <0 ) ? true:false;
+		}
+		else
+		{
+			return (nResult <= 0 ) ? false:true;
+		}
+	});
+	return TRUE;
+#endif
+}
+
+// 针对指定的列按照自定义排序函数进行排序
+BOOL CDuiGridCtrl::SortItems(PFN_GRIDCTRL_COMPARE pfnCompare, int nCol, BOOL bAscending)
+{
+    SetSortColumn(nCol);
+    SetSortAscending(bAscending);
+    //ResetSelectedRange();
+    //SetFocusCell(-1, - 1);
+
+	// 排序所有行
+    BOOL bSort = SortItems(pfnCompare, nCol, bAscending, 0, -1);
+
+	// 重新计算所有行的位置
+	CalcRowsPos();
+
+	UpdateControl(TRUE);
+
+	return bSort;
+}
+
+// 单元格自定义排序函数排序的递归实现
+BOOL CDuiGridCtrl::SortItems(PFN_GRIDCTRL_COMPARE pfnCompare, int nCol, BOOL bAscending, int low, int high)
+{
+#if __cplusplus < 201103L
+	if (nCol >= GetColumnCount())
+		return FALSE;
+
+	if (high == -1)
+		high = GetRowCount() - 1;
+
+	int lo = low;
+	int hi = high;
+
+	if (hi <= lo)
+		return FALSE;
+
+	GridItemInfo midItem = *(GetItemInfo((lo + hi)/2, nCol));
+
+	// loop through the list until indices cross
+	while (lo <= hi)
+	{
+		// Find the first element that is greater than or equal to the partition 
+		// element starting from the left Index.
+		if (bAscending)
+			while (lo < high  && pfnCompare(GetItemInfo(lo, nCol), &midItem) < 0)
+				++lo;
+		else
+			while (lo < high && pfnCompare(GetItemInfo(lo, nCol), &midItem) > 0)
+				++lo;
+
+		// Find an element that is smaller than or equal to  the partition 
+		// element starting from the right Index.
+		if (bAscending)
+			while (hi > low && pfnCompare(GetItemInfo(hi, nCol), &midItem) > 0)
+				--hi;
+		else
+			while (hi > low && pfnCompare(GetItemInfo(hi, nCol), &midItem) < 0)
+				--hi;
+
+		// If the indexes have not crossed, swap if the items are not equal
+		if (lo <= hi)
+		{
+			// swap only if the items are not equal
+			if (pfnCompare(GetItemInfo(lo, nCol), GetItemInfo(hi, nCol)) != 0)
+			{
+				// 交换行
+				swap(m_vecRowInfo[lo], m_vecRowInfo[hi]);
+			}
+
+			++lo;
+			--hi;
+		}
+	}
+
+	// If the right index has not reached the left side of array
+	// must now sort the left partition.
+	if (low < hi)
+		SortItems(pfnCompare, nCol, bAscending, low, hi);
+
+	// If the left index has not reached the right side of array
+	// must now sort the right partition.
+	if (lo < high)
+		SortItems(pfnCompare, nCol, bAscending, lo, high);
+
+	return TRUE;
+#else
+	// 以下代码使用了C++11新的lamda特性,只在VC2012以上版本使用
+	if (nCol >= GetColumnCount())
+		return FALSE;
+	std::sort(m_vecRowInfo.begin(), m_vecRowInfo.end(), 
+		[=](GridRowInfo & a, GridRowInfo & b) -> bool 
+	{
+		GridItemInfo *pInfo1 =  &(a.vecItemInfo.at(nCol));
+		GridItemInfo *pInfo2 = &(b.vecItemInfo.at(nCol));
+		int nResult = m_pfnCompare(pInfo1,pInfo2);
+		if (bAscending)
+		{
+			return (nResult <0 ) ? true:false;
+		}
+		else
+		{
+			return (nResult <= 0 ) ? false:true;
+		}
+	});
+	return TRUE;
+#endif
+}
+
 // 鼠标移动事件处理
 BOOL CDuiGridCtrl::OnControlMouseMove(UINT nFlags, CPoint point)
 {
@@ -1241,6 +1557,24 @@ BOOL CDuiGridCtrl::OnControlMouseMove(UINT nFlags, CPoint point)
 		m_nHoverRow = -1;
 	}
 
+	// 标题行的检查框
+	BOOL bHoverHeaderCheck = m_bHoverHeaderCheck;
+	if((m_nHeaderCheck != -1) && (m_nHeaderHeight > 0) && m_rc.PtInRect(point))
+	{
+		CRect rcHeaderCheck = m_rcHeaderCheck;
+		rcHeaderCheck.OffsetRect(m_rc.left, m_rc.top);
+		if(rcHeaderCheck.PtInRect(point))
+		{
+			m_bHoverHeaderCheck = true;
+		}else
+		{
+			m_bHoverHeaderCheck = false;
+		}
+	}else
+	{
+		m_bHoverHeaderCheck = false;
+	}
+
 	// 拖动列分隔线相关变量
 	enumButtonState buttonState = m_enButtonState;
 	BOOL bHoverSplitColumn = m_bHoverSplitColumn;
@@ -1286,7 +1620,10 @@ BOOL CDuiGridCtrl::OnControlMouseMove(UINT nFlags, CPoint point)
 		}
 	}
 
-	if((nOldHoverRow != m_nHoverRow) || bHoverItemChange || (buttonState != m_enButtonState) || (bHoverSplitColumn != m_bHoverSplitColumn))
+	if((nOldHoverRow != m_nHoverRow) || bHoverItemChange
+		|| (buttonState != m_enButtonState)
+		|| (bHoverHeaderCheck != m_bHoverHeaderCheck)
+		|| (bHoverSplitColumn != m_bHoverSplitColumn))
 	{
 		UpdateControl(TRUE);
 		return true;
@@ -1333,6 +1670,7 @@ BOOL CDuiGridCtrl::OnControlLButtonDown(UINT nFlags, CPoint point)
 		return false;
 	}
 
+	// 表格行的检查框事件处理
 	if((m_nHoverRow >= 0) && (m_nHoverRow < (int)m_vecRowInfo.size()))
 	{
 		GridRowInfo &rowInfo = m_vecRowInfo.at(m_nHoverRow);
@@ -1400,12 +1738,76 @@ BOOL CDuiGridCtrl::OnControlLButtonUp(UINT nFlags, CPoint point)
 
 	m_nHoverSplitColumn = -1;
 
+	// 标题行的检查框事件处理
+	if((m_nHeaderCheck != -1) && (m_nHeaderHeight > 0) && m_rc.PtInRect(point))
+	{
+		CRect rcHeaderCheck = m_rcHeaderCheck;
+		rcHeaderCheck.OffsetRect(m_rc.left, m_rc.top);
+		if(rcHeaderCheck.PtInRect(point))
+		{
+			m_nHeaderCheck = ((m_nHeaderCheck == 1) ? 0 : 1);
+
+			// 设置所有行的检查框状态(如果某一行的检查框不显示,则不设置)
+			for(size_t i = 0; i < m_vecRowInfo.size(); i++)
+			{
+				GridRowInfo &rowInfo = m_vecRowInfo.at(i);
+				if(rowInfo.nCheck != -1)
+				{
+					rowInfo.nCheck = m_nHeaderCheck;
+				}
+			}
+
+			SendMessage(MSG_BUTTON_CHECK, -1, m_nHeaderCheck);
+			UpdateControl(TRUE);
+
+			return true;
+		}
+	}
+
+	// 表头的排序事件处理
+	if(!m_bIsDisable && GetHeaderSort())
+	{
+		for(size_t i = 0; i < m_vecColumnInfo.size(); i++)
+		{
+			GridColumnInfo &columnInfo = m_vecColumnInfo.at(i);
+			CRect rcColumnSort(columnInfo.rcHeader.left, columnInfo.rcHeader.top,
+				columnInfo.rcHeader.right, columnInfo.rcHeader.bottom);
+			rcColumnSort.OffsetRect(m_rc.left - m_nVirtualLeft, m_rc.top);
+			if(rcColumnSort.PtInRect(point))
+			{
+				if(i == GetSortColumn())
+				{
+					// 如果是当前排序列,则切换排序状态
+					if(m_pfnCompare == NULL)
+					{
+						SortTextItems(i, !GetSortAscending());
+					}else
+					{
+						SortItems(m_pfnCompare, i, !GetSortAscending());
+					}
+				}else
+				{
+					// 不是当前排序列,则切换排序列,新列默认设置为升序
+					if(m_pfnCompare == NULL)
+					{
+						SortTextItems(i, TRUE);
+					}else
+					{
+						SortItems(m_pfnCompare, i, TRUE);
+					}
+				}
+				break;
+			}
+		}
+	}
+
 	// 行事件处理
 	if(m_vecRowInfo.size() == 0)
 	{
 		return false;
 	}
 
+	// 表格行的检查框事件处理
 	if((m_nHoverRow >= 0) && (m_nHoverRow < (int)m_vecRowInfo.size()))
 	{
 		GridRowInfo &rowInfo = m_vecRowInfo.at(m_nHoverRow);
@@ -1413,7 +1815,22 @@ BOOL CDuiGridCtrl::OnControlLButtonUp(UINT nFlags, CPoint point)
 		{
 			if(PtInRowCheck(point, rowInfo))	// 检查框状态改变
 			{
-				rowInfo.nCheck = ((rowInfo.nCheck == 1) ? 0 : 1);
+				if(m_bSingleCheck)
+				{
+					// 检查框单选模式,当前行设置为1,其他行设置为0
+					for(size_t i = 0; i < m_vecRowInfo.size(); i++)
+					{
+						GridRowInfo &rowInfoTemp = m_vecRowInfo.at(i);
+						if((i != m_nHoverRow) && (rowInfoTemp.nCheck != -1))
+						{
+							rowInfoTemp.nCheck = 0;
+						}
+					}
+					rowInfo.nCheck = 1;
+				}else
+				{
+					rowInfo.nCheck = ((rowInfo.nCheck == 1) ? 0 : 1);
+				}
 				SendMessage(MSG_BUTTON_CHECK, m_nHoverRow, rowInfo.nCheck);
 				UpdateControl(TRUE);
 
@@ -1429,7 +1846,22 @@ BOOL CDuiGridCtrl::OnControlLButtonUp(UINT nFlags, CPoint point)
 		{
 			if(PtInRowCheck(point, rowInfo))	// 检查框状态改变
 			{
-				rowInfo.nCheck = ((rowInfo.nCheck == 1) ? 0 : 1);
+				if(m_bSingleCheck)
+				{
+					// 检查框单选模式,当前行设置为1,其他行设置为0
+					for(size_t i = 0; i < m_vecRowInfo.size(); i++)
+					{
+						GridRowInfo &rowInfoTemp = m_vecRowInfo.at(i);
+						if((i != m_nDownRow) && (rowInfoTemp.nCheck != -1))
+						{
+							rowInfoTemp.nCheck = 0;
+						}
+					}
+					rowInfo.nCheck = 1;
+				}else
+				{
+					rowInfo.nCheck = ((rowInfo.nCheck == 1) ? 0 : 1);
+				}
 				SendMessage(MSG_BUTTON_CHECK, m_nDownRow, rowInfo.nCheck);
 				UpdateControl(TRUE);
 
@@ -1469,7 +1901,7 @@ BOOL CDuiGridCtrl::OnControlLButtonDblClk(UINT nFlags, CPoint point)
 // 垂直滚动事件处理
 BOOL CDuiGridCtrl::OnControlScroll(BOOL bVertical, UINT nFlags, CPoint point)
 {
-	if(((int)m_vecRowInfo.size() * m_nRowHeight) <= m_rc.Height())
+	if(((int)m_vecRowInfo.size() * m_nRowHeight) <= m_rc.Height() - m_nHeaderHeight)
 	{
 		return false;
 	}
@@ -1495,6 +1927,7 @@ BOOL CDuiGridCtrl::OnControlRButtonDown(UINT nFlags, CPoint point)
 	// 设置窗口焦点,否则可能无法进行滚动事件的处理
 	SetWindowFocus();
 
+	// 表格行的检查框事件处理
 	if((m_nHoverRow >= 0) && (m_nHoverRow < (int)m_vecRowInfo.size()))
 	{
 		GridRowInfo &rowInfo = m_vecRowInfo.at(m_nHoverRow);
@@ -1540,6 +1973,7 @@ BOOL CDuiGridCtrl::OnControlRButtonUp(UINT nFlags, CPoint point)
 		return false;
 	}
 
+	// 表格行的检查框事件处理
 	if((m_nHoverRow >= 0) && (m_nHoverRow < (int)m_vecRowInfo.size()))
 	{
 		GridRowInfo &rowInfo = m_vecRowInfo.at(m_nHoverRow);
@@ -1570,6 +2004,34 @@ BOOL CDuiGridCtrl::OnControlRButtonUp(UINT nFlags, CPoint point)
 	}
 
 	return false;
+}
+
+// 键盘事件处理
+BOOL CDuiGridCtrl::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
+{
+	// 如果当前处于焦点状态,用上下键可以移动当前选择行
+	if(IsFocusControl() && m_bEnableDownRow && (nChar == VK_UP) && (nFlags == 0))
+	{
+		if(m_nDownRow > 0)
+		{
+			m_nDownRow--;
+			EnsureVisible(m_nDownRow, TRUE);
+			UpdateControl(TRUE);
+		}
+		return true;
+	}else
+	if(IsFocusControl() && m_bEnableDownRow && (nChar == VK_DOWN) && (nFlags == 0))
+	{
+		if(m_nDownRow < (GetRowCount() - 1))
+		{
+			m_nDownRow++;
+			EnsureVisible(m_nDownRow, TRUE);
+			UpdateControl(TRUE);
+		}
+		return true;
+	}
+
+	return __super::OnControlKeyDown(nChar, nRepCnt, nFlags);
 }
 
 // 消息响应
@@ -1618,6 +2080,10 @@ void CDuiGridCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 	CDuiScrollVertical* pScrollV = (CDuiScrollVertical*)m_pControScrollV;
 	int nCurPosV = pScrollV->GetScrollCurrentPos();	// 当前top位置
 	int nMaxRangeV = pScrollV->GetScrollMaxRange();
+	if(nTotalColumnWidth > m_rc.Width())	// 如果需要显示水平滚动条,则春之滚动条的最大范围要减去滚动条宽度
+	{
+		nMaxRangeV -= m_nScrollWidth;
+	}
 	m_nVirtualTop = (nMaxRangeV > 0) ? (int)((double)nCurPosV*(nHeightAll-(m_rc.Height() - m_nHeaderHeight))/nMaxRangeV) : 0;	// 当前滚动条位置对应的虚拟的top位置
 	if(m_nVirtualTop < 0)
 	{
@@ -1672,7 +2138,7 @@ void CDuiGridCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 		::SysFreeString(bsFont);
 
 		SolidBrush solidBrush(m_clrText);			// 正常文字画刷
-		SolidBrush solidBrushHT(m_clrHeader);			// 标题行文字画刷
+		SolidBrush solidBrushHT(m_clrHeader);		// 标题行文字画刷
 		SolidBrush solidBrushH(m_clrTextHover);		// 热点文字画刷
 		SolidBrush solidBrushD(m_clrTextDown);		// 当前行画刷
 		SolidBrush solidBrushT(m_clrTitle);			// 标题文字画刷
@@ -1691,6 +2157,7 @@ void CDuiGridCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 
 		// 设置标题行文字的水平和垂直对齐方式
 		DUI_STRING_ALIGN_DEFINENAME(Header, m_uAlignmentHeader, m_uVAlignmentHeader);
+		strFormatHeader.SetTrimming(StringTrimmingEllipsisCharacter);//以字符为单位去尾，略去部分使用省略号表示
 		if(!m_bTextWrap)
 		{
 			strFormatHeader.SetFormatFlags(StringFormatFlagsNoWrap | StringFormatFlagsMeasureTrailingSpaces);	// 不换行
@@ -1702,16 +2169,40 @@ void CDuiGridCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 			// 画标题行背景
 			if(m_pImageHeader != NULL)
 			{
-				CRect  rcHeader(0, 0, nViewWidth, m_nHeaderHeight);
-				DrawImageFrame(graphics, m_pImageHeader, rcHeader, 0, 0, m_sizeHeader.cx, m_sizeHeader.cy, 0);
+				CRect  rcHeader(m_nVirtualLeft, 0, nViewWidth+m_nVirtualLeft, m_nHeaderHeight);
+				DrawImageFrame(graphics, m_pImageHeader, rcHeader, 0, 0, m_sizeHeader.cx, m_sizeHeader.cy);
+			}
+
+			// 画检查框
+			int nXPos = 3;
+			int nCheckImgY = 3;
+			if((m_sizeCheckBoxDpi.cy*2 > m_nHeaderHeight) || (m_uVAlignment == VAlign_Middle))
+			{
+				nCheckImgY = (m_nHeaderHeight - m_sizeCheckBoxDpi.cy) / 2 + 1;
+			}
+			if((m_nHeaderCheck != -1) && (m_pImageCheckBox != NULL))
+			{
+				int nCheckImageIndex = (m_bHoverHeaderCheck ? ((m_nHeaderCheck==1) ? 4 : 1) : ((m_nHeaderCheck==1) ? 2 : 0));
+				graphics.DrawImage(m_pImageCheckBox, Rect(nXPos, nCheckImgY, m_sizeCheckBoxDpi.cx, m_sizeCheckBoxDpi.cy),
+					nCheckImageIndex * m_sizeCheckBox.cx, 0, m_sizeCheckBox.cx, m_sizeCheckBox.cy, UnitPixel);
+				m_rcHeaderCheck.SetRect(nXPos, nCheckImgY, nXPos + m_sizeCheckBoxDpi.cx, nCheckImgY + m_sizeCheckBoxDpi.cy);
+				nXPos += (m_sizeCheckBoxDpi.cx + DUI_DPI_X(3));
 			}
 
 			// 画单元格内容
-			int nPosItemX = 0;
+			int nPosItemX = nXPos;
 			for(size_t j = 0; j < m_vecColumnInfo.size(); j++)
 			{
 				GridColumnInfo &columnInfo = m_vecColumnInfo.at(j);
+				if (columnInfo.nWidth == 0)
+				{
+					continue;
+				}
 				int nWidth = columnInfo.nWidth;
+				if(j == 0)
+				{
+					nWidth = columnInfo.nWidth - nXPos;
+				}
 				if(nWidth== -1)
 				{
 					nWidth = m_rc.Width() - nPosItemX;
@@ -1731,8 +2222,30 @@ void CDuiGridCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 				graphics.DrawString(bsTitle, (INT)wcslen(bsTitle), &fontTitle, rect, &strFormatHeader, &solidBrushHT);
 				::SysFreeString(bsTitle);
 
+				// 画标题行排序图片
+				if((m_pImageHeaderSort != NULL) && (j == m_nSortColumn))
+				{
+					RectF rectSort((Gdiplus::REAL)(nPosItemX+nWidth-m_sizeHeaderSort.cx-5), (Gdiplus::REAL)((m_nHeaderHeight-m_sizeHeaderSort.cy) / 2 + 1),
+								(Gdiplus::REAL)m_sizeHeaderSort.cx, (Gdiplus::REAL)m_sizeHeaderSort.cy);
+					graphics.DrawImage(m_pImageHeaderSort, rectSort, (Gdiplus::REAL)(m_bAscending ? 4 : 0)*m_sizeHeaderSort.cx, 0,
+								(Gdiplus::REAL)m_sizeHeaderSort.cx, (Gdiplus::REAL)m_sizeHeaderSort.cy, UnitPixel);
+				}
+
 				nPosItemX += nWidth;
 			}
+			// 画分隔线(采用拉伸模式)
+			if(m_pImageSeperator != NULL)
+			{
+				// 使用拉伸模式画图
+				graphics.DrawImage(m_pImageSeperator,
+					RectF(0, (Gdiplus::REAL)(m_nHeaderHeight)-1, (Gdiplus::REAL)(nContentWidth-2), (Gdiplus::REAL)m_sizeSeperator.cy),
+					0, 0, (Gdiplus::REAL)m_sizeSeperator.cx, (Gdiplus::REAL)m_sizeSeperator.cy, UnitPixel);
+			}else
+				if(m_clrSeperator.GetValue() != Color(0, 0, 0, 0).GetValue())
+				{
+					// 未指定图片,并且分隔线显色不是全0,则画矩形
+					graphics.FillRectangle(&solidBrushS, 0, m_nHeaderHeight-1, nContentWidth-2, 1);
+				}
 		}
 		
 		if(m_vecRowInfo.size() > 0)
@@ -1742,13 +2255,18 @@ void CDuiGridCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 				GridRowInfo &rowInfo = m_vecRowInfo.at(i);
 				SolidBrush solidBrushRow(rowInfo.clrText);	// 行定义的颜色
 
-				int nXPos = 0;
+				int nXPos = 3;
 				int nVI = i - m_nFirstViewRow;
 
 				// 鼠标移动到行时候显示的背景颜色(如果设置为全0,则不显示行背景颜色)
 				if((m_nHoverRow == i) && (m_clrRowHover.GetValue() != Color(0, 0, 0, 0).GetValue()))
 				{
 					SolidBrush brush(m_clrRowHover);
+					graphics.FillRectangle(&brush, 0, m_nHeaderHeight + nVI*m_nRowHeight, nContentWidth, m_nRowHeight);
+				}else
+				if((m_nDownRow == i) && (m_clrRowCurrent.GetValue() != Color(0, 0, 0, 0).GetValue()))	// 如果是当前行,显示当前行的背景色
+				{
+					SolidBrush brush(m_clrRowCurrent);
 					graphics.FillRectangle(&brush, 0, m_nHeaderHeight + nVI*m_nRowHeight, nContentWidth, m_nRowHeight);
 				}else
 				if(rowInfo.bRowBackColor)	// 如果设置了行的背景颜色,则填充颜色
@@ -1759,42 +2277,42 @@ void CDuiGridCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 
 				// 画检查框
 				int nCheckImgY = 3;
-				if((m_sizeCheckBox.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+				if((m_sizeCheckBoxDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 				{
-					nCheckImgY = (m_nRowHeight - m_sizeCheckBox.cy) / 2 + 1;
+					nCheckImgY = (m_nRowHeight - m_sizeCheckBoxDpi.cy) / 2 + 1;
 				}
 				if((rowInfo.nCheck != -1) && (m_pImageCheckBox != NULL))
 				{
 					int nCheckImageIndex = ((m_nHoverRow == i) ? ((rowInfo.nCheck==1) ? 4 : 1) : ((rowInfo.nCheck==1) ? 2 : 0));
-					graphics.DrawImage(m_pImageCheckBox, Rect(nXPos, m_nHeaderHeight + nVI*m_nRowHeight + nCheckImgY, m_sizeCheckBox.cx, m_sizeCheckBox.cy),
+					graphics.DrawImage(m_pImageCheckBox, Rect(nXPos, m_nHeaderHeight + nVI*m_nRowHeight + nCheckImgY, m_sizeCheckBoxDpi.cx, m_sizeCheckBoxDpi.cy),
 						nCheckImageIndex * m_sizeCheckBox.cx, 0, m_sizeCheckBox.cx, m_sizeCheckBox.cy, UnitPixel);
-					rowInfo.rcCheck.SetRect(nXPos, i*m_nRowHeight + nCheckImgY, nXPos + m_sizeCheckBox.cx, i*m_nRowHeight + nCheckImgY + m_sizeCheckBox.cy);
-					nXPos += (m_sizeCheckBox.cx + 3);
+					rowInfo.rcCheck.SetRect(nXPos, i*m_nRowHeight + nCheckImgY, nXPos + m_sizeCheckBoxDpi.cx, i*m_nRowHeight + nCheckImgY + m_sizeCheckBoxDpi.cy);
+					nXPos += (m_sizeCheckBoxDpi.cx + DUI_DPI_X(3));
 				}
 
 				// 画行左边图片
 				int nImgY = 3;
 				if(rowInfo.pImage != NULL)
 				{
-					if((rowInfo.sizeImage.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+					if((rowInfo.sizeImageDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 					{
-						nImgY = (m_nRowHeight - rowInfo.sizeImage.cy) / 2 + 1;
+						nImgY = (m_nRowHeight - rowInfo.sizeImageDpi.cy) / 2 + 1;
 					}
 					// 使用行数据指定的图片
-					graphics.DrawImage(rowInfo.pImage, Rect(nXPos, m_nHeaderHeight + nVI*m_nRowHeight + nImgY, rowInfo.sizeImage.cx, rowInfo.sizeImage.cy),
+					graphics.DrawImage(rowInfo.pImage, Rect(nXPos, m_nHeaderHeight + nVI*m_nRowHeight + nImgY, rowInfo.sizeImageDpi.cx, rowInfo.sizeImageDpi.cy),
 						0, 0, rowInfo.sizeImage.cx, rowInfo.sizeImage.cy, UnitPixel);
-					nXPos += (rowInfo.sizeImage.cx + 3);
+					nXPos += (rowInfo.sizeImageDpi.cx + DUI_DPI_X(3));
 				}else
 				if((rowInfo.nImageIndex != -1) && (m_pImage != NULL))
 				{
-					if((m_sizeImage.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+					if((rowInfo.sizeImageDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 					{
-						nImgY = (m_nRowHeight - m_sizeImage.cy) / 2 + 1;
+						nImgY = (m_nRowHeight - rowInfo.sizeImageDpi.cy) / 2 + 1;
 					}
 					// 使用索引图片
-					graphics.DrawImage(m_pImage, Rect(nXPos, m_nHeaderHeight + nVI*m_nRowHeight + nImgY, m_sizeImage.cx, m_sizeImage.cy),
+					graphics.DrawImage(m_pImage, Rect(nXPos, m_nHeaderHeight + nVI*m_nRowHeight + nImgY, rowInfo.sizeImageDpi.cx, rowInfo.sizeImageDpi.cy),
 						rowInfo.nImageIndex*m_sizeImage.cx, 0, m_sizeImage.cx, m_sizeImage.cy, UnitPixel);
-					nXPos += (m_sizeImage.cx + 3);
+					nXPos += (rowInfo.sizeImageDpi.cx + DUI_DPI_X(3));
 				}
 
 				// 画行右边图片
@@ -1802,25 +2320,25 @@ void CDuiGridCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 				nImgY = 3;
 				if(rowInfo.pRightImage != NULL)
 				{
-					if((rowInfo.sizeRightImage.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+					if((rowInfo.sizeRightImageDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 					{
-						nImgY = (m_nRowHeight - rowInfo.sizeRightImage.cy) / 2 + 1;
+						nImgY = (m_nRowHeight - rowInfo.sizeRightImageDpi.cy) / 2 + 1;
 					}
 					// 使用行数据指定的图片
-					graphics.DrawImage(rowInfo.pRightImage, Rect(nContentWidth-rowInfo.sizeRightImage.cx-1, m_nHeaderHeight + nVI*m_nRowHeight + nImgY, rowInfo.sizeRightImage.cx, rowInfo.sizeRightImage.cy),
+					graphics.DrawImage(rowInfo.pRightImage, Rect(nContentWidth-rowInfo.sizeRightImageDpi.cx-1, m_nHeaderHeight + nVI*m_nRowHeight + nImgY, rowInfo.sizeRightImageDpi.cx, rowInfo.sizeRightImageDpi.cy),
 						0, 0, rowInfo.sizeRightImage.cx, rowInfo.sizeRightImage.cy, UnitPixel);
-					nRightImageWidth = rowInfo.sizeRightImage.cx + 1;
+					nRightImageWidth = rowInfo.sizeRightImageDpi.cx + 1;
 				}else
 				if((rowInfo.nRightImageIndex != -1) && (m_pImage != NULL))
 				{
-					if((m_sizeImage.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+					if((rowInfo.sizeRightImageDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 					{
-						nImgY = (m_nRowHeight - m_sizeImage.cy) / 2 + 1;
+						nImgY = (m_nRowHeight - rowInfo.sizeRightImageDpi.cy) / 2 + 1;
 					}
 					// 使用索引图片
-					graphics.DrawImage(m_pImage, Rect(nContentWidth-m_sizeImage.cx-1, m_nHeaderHeight + nVI*m_nRowHeight + nImgY, m_sizeImage.cx, m_sizeImage.cy),
+					graphics.DrawImage(m_pImage, Rect(nContentWidth- rowInfo.sizeRightImageDpi.cx-1, m_nHeaderHeight + nVI*m_nRowHeight + nImgY, rowInfo.sizeRightImageDpi.cx, rowInfo.sizeRightImageDpi.cy),
 						rowInfo.nRightImageIndex*m_sizeImage.cx, 0, m_sizeImage.cx, m_sizeImage.cy, UnitPixel);
-					nRightImageWidth = m_sizeImage.cx + 1;
+					nRightImageWidth = rowInfo.sizeRightImageDpi.cx + 1;
 				}
 
 				// 画单元格内容
@@ -1845,26 +2363,26 @@ void CDuiGridCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 					int nImgY = 3;
 					if(itemInfo.pImage != NULL)
 					{
-						if((itemInfo.sizeImage.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+						if((itemInfo.sizeImageDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 						{
-							nImgY = (m_nRowHeight - rowInfo.sizeImage.cy) / 2 + 1;
+							nImgY = (m_nRowHeight - rowInfo.sizeImageDpi.cy) / 2 + 1;
 						}
 						// 使用单元格指定的图片
 						graphics.DrawImage(itemInfo.pImage,
-							Rect(nPosItemX+nItemImageX, m_nHeaderHeight + nVI*m_nRowHeight + nImgY, itemInfo.sizeImage.cx, itemInfo.sizeImage.cy),
+							Rect(nPosItemX+nItemImageX, m_nHeaderHeight + nVI*m_nRowHeight + nImgY, itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy),
 							0, 0, itemInfo.sizeImage.cx, itemInfo.sizeImage.cy, UnitPixel);
-						nItemImageX += (itemInfo.sizeImage.cx + 3);
+						nItemImageX += (itemInfo.sizeImageDpi.cx + DUI_DPI_X(3));
 					}else
 					if((itemInfo.nImageIndex != -1) && (m_pImage != NULL))
 					{
-						if((m_sizeImage.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+						if((itemInfo.sizeImageDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 						{
-							nImgY = (m_nRowHeight - m_sizeImage.cy) / 2 + 1;
+							nImgY = (m_nRowHeight - itemInfo.sizeImageDpi.cy) / 2 + 1;
 						}
 						// 使用索引图片
-						graphics.DrawImage(m_pImage, Rect(nPosItemX+nItemImageX, m_nHeaderHeight + nVI*m_nRowHeight + nImgY, m_sizeImage.cx, m_sizeImage.cy),
+						graphics.DrawImage(m_pImage, Rect(nPosItemX+nItemImageX, m_nHeaderHeight + nVI*m_nRowHeight + nImgY, itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy),
 							itemInfo.nImageIndex*m_sizeImage.cx, 0, m_sizeImage.cx, m_sizeImage.cy, UnitPixel);
-						nItemImageX += (m_sizeImage.cx + 3);
+						nItemImageX += (itemInfo.sizeImageDpi.cx + DUI_DPI_X(3));
 					}
 					rect.Offset((Gdiplus::REAL)nItemImageX, 0);
 					rect.Width -= (Gdiplus::REAL)nItemImageX;
@@ -1905,6 +2423,7 @@ void CDuiGridCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 
 					// 设置单元格文字对齐方式,使用列的对齐方式
 					StringFormat strFormatColumn;
+					strFormatColumn.SetTrimming(StringTrimmingEllipsisCharacter);//以字符为单位去尾，略去部分使用省略号表示
 					UINT uAlignment = m_uAlignment;
 					if(columnInfo.uAlignment != 0xFFFFUL)
 					{
@@ -1967,7 +2486,7 @@ void CDuiGridCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 						if(pControl)
 						{
 							CRect rcParent = CRect(nPosItemX, m_nHeaderHeight + nVI*m_nRowHeight + 1,
-								(int)(rect.X+rect.Width), (nVI+1)*m_nRowHeight - 1);
+								(int)(rect.X+rect.Width), m_nHeaderHeight + (nVI+1)*m_nRowHeight - 1);
 							if((int)(rect.GetRight()) > nContentWidth)
 							{
 								// 最后一列需要减去滚动条宽度
@@ -2003,38 +2522,43 @@ void CDuiGridCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 				{
 					// 使用拉伸模式画图
 					graphics.DrawImage(m_pImageSeperator,
-							RectF(0, (Gdiplus::REAL)(m_nHeaderHeight + (nVI+1)*m_nRowHeight), (Gdiplus::REAL)(nContentWidth-2), (Gdiplus::REAL)m_sizeSeperator.cy),
+							RectF(0, (Gdiplus::REAL)(m_nHeaderHeight + (nVI+1)*m_nRowHeight)-1, (Gdiplus::REAL)(nContentWidth-2), (Gdiplus::REAL)m_sizeSeperator.cy),
 							0, 0, (Gdiplus::REAL)m_sizeSeperator.cx, (Gdiplus::REAL)m_sizeSeperator.cy, UnitPixel);
 				}else
 				if(m_clrSeperator.GetValue() != Color(0, 0, 0, 0).GetValue())
 				{
 					// 未指定图片,并且分隔线显色不是全0,则画矩形
-					graphics.FillRectangle(&solidBrushS, 0, m_nHeaderHeight + (nVI+1)*m_nRowHeight, nContentWidth-2, 1);
+					graphics.FillRectangle(&solidBrushS, 0, m_nHeaderHeight + (nVI+1)*m_nRowHeight-1, nContentWidth-2, 1);
 				}
 			}
-
 			// 画内容部分的列分隔线
 			if(m_bShowColumnSeperator && (m_pImageColumnSeperator != NULL))
 			{
 				int nPosItemX = 0;
-				for(size_t j = 0; j < m_vecColumnInfo.size(); j++)
+				//先画最左侧分割线
+				RectF rectSepLeft((Gdiplus::REAL)(m_nVirtualLeft), (Gdiplus::REAL)m_nHeaderHeight,
+					(Gdiplus::REAL)m_sizeColumnSeperator.cx, (Gdiplus::REAL)(nHeightView - m_nHeaderHeight));
+				graphics.DrawImage(m_pImageColumnSeperator, rectSepLeft, 0, 0, (Gdiplus::REAL)m_sizeColumnSeperator.cx, (Gdiplus::REAL)m_sizeColumnSeperator.cy, UnitPixel);
+				// 画中间分割线
+				for(size_t j = 0; j < m_vecColumnInfo.size() -1; j++)
 				{
 					GridColumnInfo &columnInfo = m_vecColumnInfo.at(j);
 					int nWidth = columnInfo.nWidth;
 					if(nWidth== -1)
 					{
-						nWidth = m_rc.Width() - nPosItemX;
+						nWidth = m_rc.Width() - nPosItemX-m_nScrollWidth-1;
 					}
 
-					if(j < (m_vecColumnInfo.size()-1))
-					{
-						RectF rectSep((Gdiplus::REAL)(nPosItemX+nWidth), (Gdiplus::REAL)m_nHeaderHeight,
-							(Gdiplus::REAL)m_sizeColumnSeperator.cx, (Gdiplus::REAL)(nHeightView - m_nHeaderHeight));
-						graphics.DrawImage(m_pImageColumnSeperator, rectSep, 0, 0, (Gdiplus::REAL)m_sizeColumnSeperator.cx, (Gdiplus::REAL)m_sizeColumnSeperator.cy, UnitPixel);
-					}
+					RectF rectSep((Gdiplus::REAL)(nPosItemX+nWidth), (Gdiplus::REAL)m_nHeaderHeight,
+						(Gdiplus::REAL)m_sizeColumnSeperator.cx, (Gdiplus::REAL)(nHeightView - m_nHeaderHeight));
+					graphics.DrawImage(m_pImageColumnSeperator, rectSep, 0, 0, (Gdiplus::REAL)m_sizeColumnSeperator.cx, (Gdiplus::REAL)m_sizeColumnSeperator.cy, UnitPixel);
 
 					nPosItemX += nWidth;
 				}
+				//画最右侧侧分割线
+				RectF rectSepRight((Gdiplus::REAL)(m_nVirtualLeft + nViewWidth -1), (Gdiplus::REAL)m_nHeaderHeight,
+					(Gdiplus::REAL)m_sizeColumnSeperator.cx, (Gdiplus::REAL)(nHeightView - m_nHeaderHeight));
+				graphics.DrawImage(m_pImageColumnSeperator, rectSepRight, 0, 0, (Gdiplus::REAL)m_sizeColumnSeperator.cx, (Gdiplus::REAL)m_sizeColumnSeperator.cy, UnitPixel);
 			}
 
 			// 把不在显示范围内的单元格的控件都设置为不可见

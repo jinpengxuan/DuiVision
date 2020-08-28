@@ -184,6 +184,7 @@
     <ClInclude Include="common\LogMgr.h" />
     <ClInclude Include="common\registry.h" />
     <ClInclude Include="common\TaskMgr.h" />
+    <ClInclude Include="common\WinDwmWrapper.h" />
     <ClInclude Include="common\XUnZip.h" />
     <ClInclude Include="include\Area.h" />
     <ClInclude Include="include\CheckButton.h" />
@@ -211,9 +212,9 @@
     <ClInclude Include="include\DuiText.h" />
     <ClInclude Include="include\DuiTreeCtrl.h" />
     <ClInclude Include="include\DuiVision.h" />
+	<ClInclude Include="include\DuiVisionApp.h" />
     <ClInclude Include="include\DuiWkeView.h" />
     <ClInclude Include="include\DuiXml.h" />
-    <ClInclude Include="include\Frame.h" />
     <ClInclude Include="include\GlobalFunction.h" />
     <ClInclude Include="include\HideButton.h" />
     <ClInclude Include="include\IDuiPlugin.h" />
@@ -226,7 +227,7 @@
     <ClInclude Include="include\Progress.h" />
     <ClInclude Include="include\RadioButton.h" />
     <ClInclude Include="include\Rectangle.h" />
-    <ClInclude Include="include\Runing.h" />
+    <ClInclude Include="include\DuiAnimateImg.h" />
     <ClInclude Include="include\Scroll.h" />
     <ClInclude Include="include\SelectBox.h" />
     <ClInclude Include="include\TextButton.h" />
@@ -242,6 +243,7 @@
   <ItemGroup>
     <ClCompile Include="common\LogMgr.cpp" />
     <ClCompile Include="common\TaskMgr.cpp" />
+    <ClCompile Include="common\WinDwmWrapper.cpp" />
     <ClCompile Include="common\XUnzip.cpp" />
     <ClCompile Include="DuiVision.cpp" />
     <ClCompile Include="pugixml\pugixml.cpp">
@@ -274,9 +276,9 @@
     <ClCompile Include="source\DuiTab.cpp" />
     <ClCompile Include="source\DuiText.cpp" />
     <ClCompile Include="source\DuiTreeCtrl.cpp" />
+	<ClCompile Include="source\DuiVisionApp.cpp" />
     <ClCompile Include="source\DuiWkeView.cpp" />
     <ClCompile Include="source\DuiXml.cpp" />
-    <ClCompile Include="source\Frame.cpp" />
     <ClCompile Include="source\GlobalFunction.cpp" />
     <ClCompile Include="source\HideButton.cpp" />
     <ClCompile Include="source\ImageString.cpp" />
@@ -288,7 +290,7 @@
     <ClCompile Include="source\Progress.cpp" />
     <ClCompile Include="source\RadioButton.cpp" />
     <ClCompile Include="source\Rectangle.cpp" />
-    <ClCompile Include="source\Runing.cpp" />
+    <ClCompile Include="source\DuiAnimateImg.cpp" />
     <ClCompile Include="source\Scroll.cpp" />
     <ClCompile Include="source\SelectBox.cpp" />
     <ClCompile Include="source\TextButton.cpp" />

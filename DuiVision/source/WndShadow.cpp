@@ -158,10 +158,10 @@ void CWndShadow::Create(HWND hParentWnd)
 	}
 
 	// Replace the original WndProc of parent window to steal messages
-	m_OriParentProc = GetWindowLong(hParentWnd, GWL_WNDPROC);
+	m_OriParentProc = GetWindowLongPtr(hParentWnd, GWLP_WNDPROC);
 
 #pragma warning(disable: 4311)	// temporrarily disable the type_cast warning in Win32
-	SetWindowLong(hParentWnd, GWL_WNDPROC, (LONG)ParentProc);
+	SetWindowLongPtr(hParentWnd, GWLP_WNDPROC, (LONG_PTR)ParentProc);
 #pragma warning(default: 4311)
 
 }
@@ -253,7 +253,7 @@ LRESULT CALLBACK CWndShadow::ParentProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
 			else
 			{
 				pThis->m_bUpdate = true;
-				ShowWindow(pThis->m_hWnd, SW_HIDE);
+				ShowWindow(pThis->m_hWnd, SW_SHOW);
 				LONG lParentStyle = GetWindowLong(hwnd, GWL_STYLE);
 				if (lParentStyle & 0x80000000)
 				{
@@ -261,6 +261,7 @@ LRESULT CALLBACK CWndShadow::ParentProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPA
 					GetClientRect(hwnd,&rect);
 					PostMessage(hwnd,WM_SIZE,rect.Width(),rect.Height());
 				}
+				pThis->m_Status |= SS_VISABLE;// | SS_PARENTVISIBLE;
 				// pThis->m_Status |= SS_VISABLE | SS_PARENTVISIBLE;
 				// ShowWindow(pThis->m_hWnd, SW_SHOWNA);
 				// pThis->Update(hwnd);
@@ -328,12 +329,12 @@ void CWndShadow::Update(HWND hParent)
 
 	if(m_pShadowImage != NULL)
 	{
-		// 九宫格方式画阴影图片
+		// 九宫格方式画阴影图片(阴影的九宫格图片暂不进行DPI适配)
 		Graphics graphics(hMemDC);
 		CRect rcTemp(0, 0, nShadWndWid, nShadWndHei);
 		DrawImageFrameMID(graphics, m_pShadowImage, rcTemp,
 			0, 0, m_pShadowImage->GetWidth(), m_pShadowImage->GetHeight(),
-			m_nShadowWLT, m_nShadowHLT, m_nShadowWRB+1, m_nShadowHRB+1);
+			m_nShadowWLT, m_nShadowHLT, m_nShadowWRB+1, m_nShadowHRB+1, FALSE);
 	}else
 	{
 		// 画算法阴影

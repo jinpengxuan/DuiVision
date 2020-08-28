@@ -37,7 +37,7 @@ CTimer::~CTimer(void)
 }
 
 #ifdef USE_WMM_TIMER
-void CALLBACK CTimer::TimerCallProc(UINT uTimerID, UINT msg, DWORD dwData, DWORD dwa, DWORD dwb)
+void CALLBACK CTimer::TimerCallProc(UINT uTimerID, UINT msg, LONG_PTR dwData, DWORD dwa, DWORD dwb)
 {
 	CTimer *pTimer = (CTimer *)dwData;
 	if (pTimer)
@@ -87,7 +87,7 @@ int CTimer::SetTimer(UINT nTimerResolution, CString strTimerName, BOOL bAppTimer
 		} 
 	}
 
-	UINT uTimerID = timeSetEvent(nTimerResolution, m_uAccuracy,(LPTIMECALLBACK) TimerCallProc, (DWORD)this, TIME_PERIODIC);
+	UINT uTimerID = timeSetEvent(nTimerResolution, m_uAccuracy,(LPTIMECALLBACK) TimerCallProc, (DWORD_PTR)this, TIME_PERIODIC);
 	#endif
 
 	#ifdef USE_WND_TIMER

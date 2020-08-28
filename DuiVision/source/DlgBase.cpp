@@ -35,6 +35,7 @@ CDlgBase::CDlgBase(UINT nIDTemplate, CWnd* pParent /*=NULL*/)
 
 	m_bTracking = false;
 	m_bIsSetCapture = false;
+	m_bEnableWndDrag = TRUE;
 	m_clrBK = RGB(186, 226, 239);
 	m_crlBackTransParent = RGB(255, 255, 255);
 	m_bDrawImage = FALSE;
@@ -194,6 +195,7 @@ BEGIN_MESSAGE_MAP(CDlgBase, CDialog)
 	ON_WM_DROPFILES()
 	ON_WM_DESTROY()
 	ON_MESSAGE(WM_USER_CLOSEWND, OnUserCloseWindow)
+	ON_MESSAGE(WM_QUERYENDSESSION, OnQueryEndSession)
 	ON_MESSAGE(WM_SKIN, OnMessageSkin)
 	ON_MESSAGE(WM_UI_TASK, OnMessageUITask)
 	ON_MESSAGE(WM_SYSTEM_TRAYICON, OnSystemTrayIcon)
@@ -299,6 +301,8 @@ BOOL CDlgBase::OnInitDialog()
 	font.lfWeight = 600;
 
 	m_TitleFont.CreateFontIndirect(&font);
+	
+	CDuiWinDwmWrapper::AdapterDpi(m_MinSize.cx,m_MinSize.cy);
 
 	if(m_bTopMost)
 	{
@@ -396,9 +400,9 @@ void CDlgBase::InitBaseUI(CRect rcClient, DuiXmlNode pNode)
 				if(pControl)
 				{
 					pControl->Load(pControlElem);
-					if(pControl->IsClass(CArea::GetClassName()) || pControl->IsClass(CDuiFrame::GetClassName()))
+					if(pControl->IsClass(CArea::GetClassName()))
 					{
-						// Area和Frame不能响应鼠标,必须加到Area列表中
+						// Area不能响应鼠标,必须加到Area列表中
 						m_vecBaseArea.push_back(pControl);
 					}else
 					{
@@ -448,9 +452,9 @@ void CDlgBase::InitUI(CRect rcClient, DuiXmlNode pNode)
 				if(pControl)
 				{
 					pControl->Load(pControlElem);
-					if(pControl->IsClass(CArea::GetClassName()) || pControl->IsClass(CDuiFrame::GetClassName()))
+					if(pControl->IsClass(CArea::GetClassName()))
 					{
-						// Area和Frame不能响应鼠标,必须加到Area列表中
+						// Area不能响应鼠标,必须加到Area列表中
 						m_vecArea.push_back(pControl);
 					}else
 					{
@@ -498,6 +502,9 @@ void CDlgBase::InitDialogValue()
 				// 更新窗口大小
 				SetMinSize(m_MinSize.cx, m_MinSize.cy);
 				SetRect(CRect(0, 0, m_MinSize.cx, m_MinSize.cy));
+			}else
+			{
+				SetAttribute(pCtrlValue->strType, pCtrlValue->strValue, TRUE);
 			}
 		}
 	}
@@ -524,39 +531,27 @@ void CDlgBase::InitControlValue()
 		}
 		if(pControl != NULL)
 		{
-			if(pCtrlValue->strType == _T("visible"))
+			// 需要通过控件函数刷新的一些属性值需要特殊处理,其他的直接调用控件的设置属性值函数
+			if(pCtrlValue->strType == _T("show"))
 			{
 				pControl->SetVisible(_ttoi(pCtrlValue->strValue));
-			}else
-			if(pCtrlValue->strType == _T("disable"))
-			{
-				pControl->SetDisable(_ttoi(pCtrlValue->strValue));
 			}else
 			if(pCtrlValue->strType == _T("title"))
 			{
 				((CControlBaseFont*)pControl)->SetTitle(pCtrlValue->strValue);
-			}else
-			if(pCtrlValue->strType == _T("image"))
-			{
-				((CControlBaseFont*)pControl)->OnAttributeImage(pCtrlValue->strValue, TRUE);
-			}else
-			if(pCtrlValue->strType == _T("check"))
-			{
-				if(pControl->IsClass(CCheckButton::GetClassName()))
-				{
-					((CCheckButton*)pControl)->SetCheck(pCtrlValue->strValue == _T("true"));
-				}else
-				if(pControl->IsClass(CDuiRadioButton::GetClassName()))
-				{
-					((CDuiRadioButton*)pControl)->SetCheck(pCtrlValue->strValue == _T("true"));
-				}
 			}else
 			if(pCtrlValue->strType == _T("value"))
 			{
 				if(pControl->IsClass(CDuiComboBox::GetClassName()))
 				{
 					((CDuiComboBox*)pControl)->SetComboValue(pCtrlValue->strValue);
+				}else
+				{
+					pControl->SetAttribute(pCtrlValue->strType, pCtrlValue->strValue, TRUE);
 				}
+			}else
+			{
+				pControl->SetAttribute(pCtrlValue->strType, pCtrlValue->strValue, TRUE);
 			}
 		}
 	}
@@ -997,25 +992,44 @@ void CDlgBase::InitWindowBkSkin()
 // 拖拽图片更新窗口背景图片
 void CDlgBase::OnDropFiles(HDROP hDropInfo)
 {
+	CPoint ptDrop;
+	BOOL bQueryPoint = (DragQueryPoint(hDropInfo, &ptDrop) && m_pControl);
+
 	TCHAR szFileName[MAX_PATH + 1] = {0};
 	UINT nFiles = DragQueryFile(hDropInfo, 0xFFFFFFFF, NULL, 0);
 	for(UINT i = 0; i < nFiles; i++)
-	{		
+	{
 		DragQueryFile(hDropInfo, i, szFileName, MAX_PATH);
 		if(PathIsDirectory(szFileName))
 		{
 			continue;
-		}	
+		}
 		CString strFileName = szFileName;
-		strFileName = strFileName.Right(3);
-		if (0 == strFileName.CompareNoCase(TEXT("bmp")) || 0 == strFileName.CompareNoCase(TEXT("jpg")) || 0 == strFileName.CompareNoCase(TEXT("png")))
+
+		CString strEnableDragFile = DuiSystem::Instance()->GetConfig(_T("enableDragFile"));
+		//strEnableDragFile不可能=0
+		if(strEnableDragFile != _T("2"))	//只允许背景
 		{
-			LoadBackgroundImage(szFileName);
-			// 保存背景信息
-			DuiSystem::Instance()->SetWindowBkInfo(BKTYPE_IMAGE_FILE, 0, RGB(0,0,0), szFileName);
-			// 刷新所有窗口的背景皮肤
-			DuiSystem::Instance()->ResetAllWindowsBkSkin();
-			break;
+			// 如果当前控件可以处理拖拽文件的事件,则不需要其他的处理
+			if(bQueryPoint && m_pControl->OnControlDropFile(ptDrop, strFileName))
+			{
+				continue;
+			}
+		}
+
+		if(strEnableDragFile != _T("1"))
+		{
+			// 当前控件未处理此事件,则获取文件后缀,如果文件后缀是图片则更改背景
+			strFileName = strFileName.Right(3);
+			if (0 == strFileName.CompareNoCase(TEXT("bmp")) || 0 == strFileName.CompareNoCase(TEXT("jpg")) || 0 == strFileName.CompareNoCase(TEXT("png")))
+			{
+				LoadBackgroundImage(szFileName);
+				// 保存背景信息
+				DuiSystem::Instance()->SetWindowBkInfo(BKTYPE_IMAGE_FILE, 0, RGB(0,0,0), szFileName);
+				// 刷新所有窗口的背景皮肤
+				DuiSystem::Instance()->ResetAllWindowsBkSkin();
+				break;
+			}
 		}
 	}
 	// CDialog::OnDropFiles(hDropInfo);
@@ -1036,6 +1050,14 @@ void CDlgBase::LoadBackgroundImage(CString strFileName)
 	if(DuiSystem::Instance()->LoadBitmapFile(strFileName, bitBackground, m_sizeBKImage))
 	{
 		DrawBackground(bitBackground);
+	}
+	else
+	{
+		CString strImgFile = DuiSystem::Instance()->GetSkin(_T("SKIN_PIC_0"));
+		if (strFileName.Compare(strImgFile) != 0)
+		{
+			LoadBackgroundImage(strImgFile);
+		}
 	}
 }
 
@@ -1693,7 +1715,10 @@ LRESULT CDlgBase::OnUserCloseWindow(WPARAM wParam, LPARAM lParam)
 	// wParam参数表示对话框的返回值
 	if(wParam == IDOK)
 	{
-		OnOK();
+		if(m_pDuiHandler == NULL || m_pDuiHandler->OnValidate())
+		{
+			OnOK();
+		}
 	}else
 	if(wParam == IDCANCEL)
 	{
@@ -1728,6 +1753,31 @@ BOOL CDlgBase::OnMaximize()
  		ShowWindow(SW_SHOWMAXIMIZED);
 		return TRUE;
  	}
+}
+
+// 自定义的Windows系统关闭时的数据保护消息处理(WM_QUERYENDSESSION)
+LRESULT CDlgBase::OnQueryEndSession(WPARAM wParam, LPARAM lParam)
+{
+	// Windows在关机的时候会向所有顶层窗口广播一个消息WM_QUERYENDSESSION，
+	// 其lParam参数可以区分是关机还是注销用户(注销用户时lParam是ENDSESSION_LOGOFF)。
+	// 然后Windows会等到所有的应用程序都对这个消息返回TRUE才会关机，
+	// 因此，只要应用程序对这个消息的处理返回FALSE，Windows就不会关机了
+
+	// 判断是否主窗口
+	if(DuiSystem::Instance()->GetDuiDialog(0) != this)
+	{
+		return 1;
+	}
+
+	// 调用事件处理对象进行处理
+	LRESULT nRet = DuiSystem::Instance()->CallDuiHandler(0, _T(""), MSG_WM_QUERYENDSESSION, wParam, lParam);
+	if(nRet != 0)
+	{
+		// 如果DUI消息被处理过,并且没有返回0,则表示当前不能结束系统会话,需要给操作系统返回0
+		return 0;
+	}
+
+	return 1;
 }
 
 // 窗口的皮肤选择
@@ -1840,6 +1890,10 @@ LRESULT CDlgBase::OnMessageUITask(WPARAM wParam, LPARAM lParam)
 		{
 			pTask->TaskNotify(pTaskMgr, DuiVision::IBaseTask::TE_Canceled);
 		}
+	}
+	if (pTask != NULL)
+	{
+		pTask->Release();
 	}
 	return bRet;
 }
@@ -2084,7 +2138,7 @@ void CDlgBase::PreSubclassWindow()
 {
 	// 判断是否允许拖拽图片文件作为窗口背景
 	CString strEnableDragFile = DuiSystem::Instance()->GetConfig(_T("enableDragFile"));
-	if(strEnableDragFile == _T("1"))
+	if(strEnableDragFile != _T("0"))
 	{
 		DragAcceptFiles(TRUE);
 	}
@@ -2325,7 +2379,7 @@ void CDlgBase::OnLButtonDown(UINT nFlags, CPoint point)
 		return;
 	}
 
-	if(!bHandled)
+	if(!bHandled && m_bEnableWndDrag)
 	{
 		// 窗口拖动消息
 		PostMessage(WM_NCLBUTTONDOWN,HTCAPTION,MAKELPARAM(point.x, point.y));
@@ -2504,7 +2558,12 @@ void CDlgBase::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 // 消息预处理
 BOOL CDlgBase::PreTranslateMessage(MSG* pMsg)
 {
-	if (( pMsg->message == WM_KEYDOWN ) || ( pMsg->message == WM_SYSKEYDOWN ))
+	if (m_mapMsg.find(pMsg->message) != m_mapMsg.end())
+	{
+		//SendMessage(pMsg->message,pMsg->wParam,pMsg->lParam);
+		DuiSystem::AddDuiActionTask(1,pMsg->message,pMsg->wParam,pMsg->lParam,m_mapMsg[pMsg->message],_T(""),NULL);
+	}
+	if (( pMsg->message == WM_KEYDOWN ) || ( pMsg->message == WM_SYSKEYDOWN ))	// 键盘按下消息
 	{
 		// 键盘事件处理
 		UINT nFlags = 0;
@@ -2571,6 +2630,43 @@ BOOL CDlgBase::PreTranslateMessage(MSG* pMsg)
 		if(pMsg->wParam == VK_RETURN)
 		{
 			return TRUE;
+		}
+	}else
+	if (( pMsg->message == WM_KEYUP ) || ( pMsg->message == WM_SYSKEYUP ))	// 键盘放开消息
+	{
+		// 键盘事件处理
+		UINT nFlags = 0;
+		BOOL bCtrl=::GetKeyState(VK_CONTROL)&0x8000;
+		BOOL bShift=::GetKeyState(VK_SHIFT)&0x8000;
+		BOOL bAlt=::GetKeyState(VK_MENU)&0x8000;	// ALT键只有WM_SYSKEYDOWN消息才能捕获到
+		nFlags |= (bCtrl ? VK_CONTROL : 0);
+		nFlags |= (bShift ? VK_SHIFT : 0);
+		nFlags |= (bAlt ? VK_MENU : 0);
+
+		// 当前控件是否能处理
+		if (m_pControl && m_pControl->OnKeyUp(pMsg->wParam, 1, nFlags))
+		{
+			return TRUE;
+		}
+
+		// 窗口自身的基础控件
+		for (size_t i = 0; i < m_vecBaseControl.size(); i++)
+		{
+			CControlBase * pControlBase = m_vecBaseControl.at(i);
+			if (pControlBase && pControlBase->OnKeyUp(pMsg->wParam, 1, nFlags))
+			{
+				return TRUE;
+			}		
+		}
+		
+		// 用户控件
+		for (size_t i = 0; i < m_vecControl.size(); i++)
+		{
+			CControlBase * pControlBase = m_vecControl.at(i);
+			if (pControlBase && pControlBase->OnKeyUp(pMsg->wParam, 1, nFlags))
+			{
+				return TRUE;
+			}	
 		}
 	}else
 	/*if ( pMsg->message == WM_CHAR)
@@ -2851,7 +2947,10 @@ void CDlgBase::CloseDlgPopup()
 	}
 	m_pWndPopup = NULL;
 }
-
+CDlgPopup * CDlgBase::GetDlgPopUp()
+{
+	return m_pWndPopup;
+}
 void CDlgBase::OnDestroy()
 {
 	__super::OnDestroy();

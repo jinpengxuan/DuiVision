@@ -60,9 +60,29 @@ public:                                                             \
         }                                                           \
         else                                                        \
 
+// 控件名前缀对应的事件处理
+#define DUI_CONTROL_PREFIXNAME_MESSAGE(controlname, msghandler)     \
+        if (strName.Find(controlname) == 0)                            \
+        {                                                           \
+			nRet = msghandler(uID, strName, Msg, wParam, lParam);	\
+            if(nRet)                      \
+				return nRet;                      \
+        }                                                           \
+        else                                                        \
+
 // 控件名和Msg对应的事件处理
 #define DUI_CONTROL_NAMEMSG_MESSAGE(controlname, msg, msghandler)     \
         if (controlname == strName && msg == Msg)                            \
+        {                                                           \
+			nRet = msghandler(uID, strName, Msg, wParam, lParam);	\
+            if(nRet)                      \
+				return nRet;                      \
+        }                                                           \
+        else                                                        \
+
+// 控件名前缀和Msg对应的事件处理
+#define DUI_CONTROL_PREFIXNAME_MSG_MESSAGE(controlname, msg, msghandler)     \
+        if (strName.Find(controlname) == 0  && msg == Msg)                            \
         {                                                           \
 			nRet = msghandler(uID, strName, Msg, wParam, lParam);	\
             if(nRet)                      \
@@ -98,6 +118,7 @@ public:
 	CString GetTitle(CString strControlName);
 
 	virtual void OnInit();
+	virtual BOOL OnValidate();
 	virtual LRESULT OnDuiMessage(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam);
 	virtual void OnTimer(UINT uTimerID, CString strTimerName);
 

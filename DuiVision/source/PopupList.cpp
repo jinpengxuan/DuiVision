@@ -16,6 +16,8 @@ CPopupList::CPopupList(void)
 	m_nHeight = 0;
 	m_strFont = DuiSystem::GetDefaultFont();
 	m_nFontWidth = 12;
+	// 按照当前DPI计算字体的显示大小
+	CDuiWinDwmWrapper::AdapterDpi(m_nFontWidth);
 	m_fontStyle = FontStyleRegular;
 	m_clrHover = Color(225, 0, 147, 209);
 	m_bSingleLine = TRUE;
@@ -224,6 +226,7 @@ bool CPopupList::DeleteItem(UINT nItem)
 
 void CPopupList::InitUI(CRect rcClient)
 {
+	__super::InitUI(rcClient);
 }
 
 // 添加列表项
@@ -285,14 +288,14 @@ void CPopupList::SetItemPoint()
 		}
 	}
 
-	int nHeight = 4;
-	nHeight += 24 * nItemCount;
+	int nHeight = DUI_DPI_Y(4);
+	nHeight += DUI_DPI_Y(24) * nItemCount;
 	if(bHaveDesc)
 	{
-		if(0 == nItemCount) nHeight += 40;
-		if(nItemCount >= 1) nHeight += 20;
-		if(nItemCount >= 2) nHeight += 9;
-		if(nItemCount >= 2) nHeight += 9;
+		if(0 == nItemCount) nHeight += DUI_DPI_Y(40);
+		if(nItemCount >= 1) nHeight += DUI_DPI_Y(20);
+		if(nItemCount >= 2) nHeight += DUI_DPI_Y(9);
+		if(nItemCount >= 2) nHeight += DUI_DPI_Y(9);
 	}
 
 	int nStratTop = 2;
@@ -304,25 +307,25 @@ void CPopupList::SetItemPoint()
 		if((i - 1 == m_nHoverItem) && (m_nHoverItem != -1) || (i + 1 == m_nHoverItem))
 		{
 			editListItem.rcItem.top = nStratTop;
-			editListItem.rcItem.bottom = nStratTop + (bHaveDesc ? 33 : 24);
-			nStratTop += (bHaveDesc ? 33 : 24);
+			editListItem.rcItem.bottom = nStratTop + (bHaveDesc ? DUI_DPI_Y(33) : DUI_DPI_Y(24));
+			nStratTop += (bHaveDesc ? DUI_DPI_Y(33) : DUI_DPI_Y(24));
 		}
 		else if(i == m_nHoverItem)
 		{
 			editListItem.rcItem.top = nStratTop;
-			editListItem.rcItem.bottom = nStratTop + (bHaveDesc ? 44 : 24);
-			nStratTop += (bHaveDesc ? 44 : 24);
+			editListItem.rcItem.bottom = nStratTop + (bHaveDesc ? DUI_DPI_Y(44) : DUI_DPI_Y(24));
+			nStratTop += (bHaveDesc ? DUI_DPI_Y(44) : DUI_DPI_Y(24));
 
 			int nLeft = editListItem.rcItem.right - m_sizeClose.cx - 7;
-			int nTop = editListItem.rcItem.top + ((bHaveDesc ? 44 : 24) - m_sizeClose.cy) / 2 + 1;
+			int nTop = editListItem.rcItem.top + ((bHaveDesc ? DUI_DPI_Y(44) : DUI_DPI_Y(24)) - m_sizeClose.cy) / 2 + 1;
 
 			m_rcClose.SetRect(nLeft, nTop, nLeft + m_sizeClose.cx, nTop + m_sizeClose.cy);
 		}
 		else
 		{
 			editListItem.rcItem.top = nStratTop;
-			editListItem.rcItem.bottom = nStratTop + 24;
-			nStratTop += 24;
+			editListItem.rcItem.bottom = nStratTop + DUI_DPI_Y(24);
+			nStratTop += DUI_DPI_Y(24);
 		}
 	}
 
@@ -489,8 +492,7 @@ BOOL CPopupList::OnLButtonUp(CPoint point)
 		{
 			if(m_nHoverItem != -1)
 			{
-				//SendMessage(m_uMessageID, DELETE_ITEM, m_nHoverItem);
-				SendMessageToParent(m_uMessageID, DELETE_ITEM, m_nHoverItem);
+				SendMessageToParent(MSG_CONTROL_DELETE, m_uMessageID, m_nHoverItem);
 				bDraw = TRUE;
 			}
 		}	
@@ -505,8 +507,7 @@ BOOL CPopupList::OnLButtonUp(CPoint point)
 		EditListItem &editListItem = m_vecItem.at(m_nHoverItem);
 		if(editListItem.rcItem.PtInRect(point))
 		{
-			//SendMessage(m_uMessageID, SELECT_ITEM, m_nHoverItem);
-			SendMessageToParent(m_uMessageID, SELECT_ITEM, m_nHoverItem);
+			SendMessageToParent(MSG_CONTROL_SELECT, m_uMessageID, m_nHoverItem);
 		}
 	}
 	
@@ -539,7 +540,7 @@ BOOL CPopupList::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	}else
 	if(nChar == VK_RETURN)	// 回车键选择列表项
 	{
-		SendMessageToParent(m_uMessageID, SELECT_ITEM, m_nHoverItem);
+		SendMessageToParent(MSG_CONTROL_SELECT, m_uMessageID, m_nHoverItem);
 		return true;
 	}
 
@@ -576,14 +577,14 @@ void CPopupList::DrawWindow(CDC &dc, CRect rcClient)
 	{
 		EditListItem &editListItem = m_vecItem.at(i);
 		rcItem = editListItem.rcItem;
-		int nLeftStart = 47;
+		int nLeftStart = DUI_DPI_X(47);
 		if(editListItem.pImage == NULL)	// 没有图片,左边距
 		{
-			nLeftStart = 5;
+			nLeftStart = DUI_DPI_X(5);
 		}else
 		if(m_bSingleLine)	// 单行,左边距减少一些
 		{
-			nLeftStart = 25;
+			nLeftStart = DUI_DPI_X(25);
 		}
 
 		// 显示当前项

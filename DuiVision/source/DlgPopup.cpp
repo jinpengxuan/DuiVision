@@ -85,6 +85,7 @@ BEGIN_MESSAGE_MAP(CDlgPopup, CWnd)
 	ON_MESSAGE(WM_MOUSELEAVE, OnMouseLeave)
 	ON_MESSAGE(WM_MOUSEHOVER, OnMouseHover)
 	ON_WM_KEYDOWN()
+	ON_WM_KEYUP()
 	ON_WM_MOUSEMOVE()
 	ON_WM_MOUSEWHEEL()
 	ON_WM_LBUTTONDOWN()
@@ -105,6 +106,12 @@ BOOL CDlgPopup::Create(CWnd *pParent, CRect rc, UINT uMessageID, UINT nResourceI
 	m_uMessageID = uMessageID;
 	m_point.SetPoint(rc.left, rc.top);
 	m_size.SetSize(rc.Width(), rc.Height());
+
+	CDuiWinDwmWrapper::AdapterDpi(m_size.cx,m_size.cy);
+
+	// 按照m_size大小设置窗口的大小
+	rc.right = rc.left + m_size.cx;
+	rc.bottom = rc.top + m_size.cy;
 
 	m_enBackMode = enBackMode;
 	m_nFrameSize = nFrameSize;
@@ -131,6 +138,12 @@ BOOL CDlgPopup::Create(CWnd *pParent, CRect rc, UINT uMessageID, CString strImag
 	m_uMessageID = uMessageID;
 	m_point.SetPoint(rc.left, rc.top);
 	m_size.SetSize(rc.Width(), rc.Height());
+
+	CDuiWinDwmWrapper::AdapterDpi(m_size.cx,m_size.cy);
+
+	// 按照m_size大小设置窗口的大小
+	rc.right = rc.left + m_size.cx;
+	rc.bottom = rc.top + m_size.cy;
 
 	m_enBackMode = enBackMode;
 	m_nFrameSize = nFrameSize;
@@ -160,12 +173,13 @@ BOOL CDlgPopup::Create(CWnd *pParent, CRect rc, UINT uMessageID)
 	if((m_size.cx == 0) || (m_size.cy == 0))
 	{
 		m_size.SetSize(rc.Width(), rc.Height());
-	}else
-	{
-		// 按照m_size大小设置窗口的大小
-		rc.right = rc.left + m_size.cx;
-		rc.bottom = rc.top + m_size.cy;
 	}
+
+	CDuiWinDwmWrapper::AdapterDpi(m_size.cx,m_size.cy);
+
+	// 按照m_size大小设置窗口的大小
+	rc.right = rc.left + m_size.cx;
+	rc.bottom = rc.top + m_size.cy;
 
 	DWORD dwStyle = WS_EX_TOOLWINDOW;
 	if(m_bTopMost)	// 窗口总在最前面
@@ -288,6 +302,29 @@ BOOL CDlgPopup::LoadXmlContent(CString strXmlContent)
 	return TRUE;
 }
 
+// UI初始化,此函数在窗口的OnCreate函数中调用
+void CDlgPopup::InitUI(CRect rcClient)
+{
+	// 设置所有控件的父窗口句柄,因为DlgPopup在加载控件时候窗口还没有创建,设置的窗口句柄都为空,因此需要在窗口创建之后设置所有控件的窗口句柄
+	for (size_t i = 0; i < m_vecControl.size(); i++)
+	{
+		CControlBase * pControlBase = m_vecControl.at(i);
+		if (pControlBase)
+		{
+			pControlBase->SetHWND(m_hWnd);
+		}
+	}
+
+	for (size_t i = 0; i < m_vecArea.size(); i++)
+	{
+		CControlBase * pControlBase = m_vecArea.at(i);
+		if (pControlBase)
+		{
+			pControlBase->SetHWND(m_hWnd);
+		}
+	}
+}
+
 // 初始化窗口控件
 void CDlgPopup::InitUI(CRect rcClient, DuiXmlNode pNode)
 {
@@ -310,9 +347,9 @@ void CDlgPopup::InitUI(CRect rcClient, DuiXmlNode pNode)
 					if(pControl->Load(pControlElem))
 					{
 						// 如果Load成功,则添加控件
-						if(pControl->IsClass(CArea::GetClassName()) || pControl->IsClass(CDuiFrame::GetClassName()))
+						if(pControl->IsClass(CArea::GetClassName()))
 						{
-							// Area和Frame不能响应鼠标,必须加到Area列表中
+							// Area不能响应鼠标,必须加到Area列表中
 							m_vecArea.push_back(pControl);
 						}else
 						{
@@ -367,8 +404,8 @@ void CDlgPopup::SetBackMode(enumBackMode enBackMode)
 	if(m_enBackMode == enBMImage && m_pImage != NULL)
 	{
 		m_enBackMode = enBackMode;
-		SetWindowPos(NULL, m_point.x, m_point.y, m_sizeBKImage.cx, m_sizeBKImage.cy, SWP_SHOWWINDOW);
-		m_size = m_sizeBKImage;
+		SetWindowPos(NULL, m_point.x, m_point.y, m_sizeBKImageDpi.cx, m_sizeBKImageDpi.cy, SWP_SHOWWINDOW);
+		m_size = m_sizeBKImageDpi;
 	}
 	else
 	{
@@ -389,6 +426,8 @@ void CDlgPopup::SetBackBitmap(UINT nResourceID)
 	if(LoadImageFromIDResource(nResourceID, TEXT("PNG"), m_bImageUseECM, m_pImage))
 	{
 		m_sizeBKImage.SetSize(m_pImage->GetWidth(), m_pImage->GetHeight());
+		m_sizeBKImageDpi.SetSize(m_pImage->GetWidth(), m_pImage->GetHeight());
+		CDuiWinDwmWrapper::AdapterDpi(m_sizeBKImageDpi.cx, m_sizeBKImageDpi.cy);
 		//DrawWindow();
 		if(m_bInitFinish)
 		{
@@ -402,6 +441,8 @@ void CDlgPopup::SetBackBitmap(CString strImage)
 	if(DuiSystem::Instance()->LoadImageFile(strImage, FALSE, m_pImage))
 	{
 		m_sizeBKImage.SetSize(m_pImage->GetWidth(), m_pImage->GetHeight());
+		m_sizeBKImageDpi.SetSize(m_pImage->GetWidth(), m_pImage->GetHeight());
+		CDuiWinDwmWrapper::AdapterDpi(m_sizeBKImageDpi.cx, m_sizeBKImageDpi.cy);
 		//DrawWindow();
 		if(m_bInitFinish)
 		{
@@ -520,7 +561,8 @@ void CDlgPopup::DrawWindow(CDC *pDC)
 				m_nFrameWLT, m_nFrameHLT, m_nFrameWRB, m_nFrameHRB);
 		}else	// 图片模式
 		{
-			graphics.DrawImage(m_pImage, Rect(0, 0, m_sizeBKImage.cx, m_sizeBKImage.cy), 0, 0, m_sizeBKImage.cx, m_sizeBKImage.cy, UnitPixel);
+			graphics.DrawImage(m_pImage, Rect(0, 0, m_sizeBKImageDpi.cx, m_sizeBKImageDpi.cy),
+								0, 0, m_sizeBKImage.cx, m_sizeBKImage.cy, UnitPixel);
 		}
 	}
 	else
@@ -952,7 +994,7 @@ void CDlgPopup::OnRButtonDblClk(UINT nFlags, CPoint point)
 	CWnd::OnRButtonDblClk(nFlags, point);
 }
 
-// 键盘事件处理
+// 键盘按下事件处理
 void CDlgPopup::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
 	// 当前控件是否能处理
@@ -977,6 +1019,33 @@ void CDlgPopup::OnKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	}
 
 	CWnd::OnKeyDown(nChar, nRepCnt, nFlags);
+}
+
+// 键盘放开事件处理
+void CDlgPopup::OnKeyUp(UINT nChar, UINT nRepCnt, UINT nFlags)
+{
+	// 当前控件是否能处理
+	if (m_pControl && m_pControl->OnKeyUp(nChar, nRepCnt, nFlags))
+	{
+		return;
+	}
+	
+	// 子控件是否能处理
+	for (size_t i = 0; i < m_vecControl.size(); i++)
+	{
+		CControlBase * pControlBase = m_vecControl.at(i);
+		if (pControlBase && pControlBase->OnKeyUp(nChar, nRepCnt, nFlags))
+		{
+			return;
+		}	
+	}
+
+	if(OnControlKeyUp(nChar, nRepCnt, nFlags))
+	{
+		return;
+	}
+
+	CWnd::OnKeyUp(nChar, nRepCnt, nFlags);
 }
 
 void CDlgPopup::PostNcDestroy()

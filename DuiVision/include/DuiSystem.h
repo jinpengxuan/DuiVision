@@ -2,6 +2,7 @@
 
 #include "duisingleton.h"
 #include  <afxtempl.h>
+#include "DuiVisionApp.h"
 
 // 注册DUI控件宏
 #define REGISTER_DUICONTROL(classname, pfShutdown)   \
@@ -13,8 +14,12 @@
 
 
 // 多语言ID定义
+#ifndef LANGUAGE_PAGE_ENGLISH
 #define LANGUAGE_PAGE_ENGLISH		0x0409	// 英文
+#endif
+#ifndef LANGUAGE_PAGE_CHINESE
 #define LANGUAGE_PAGE_CHINESE		0x0804	// 中文简体
+#endif
 #define LANGUAGE_PAGE_CHINESE_TW	0x0404	// 台湾繁体
 #define LANGUAGE_PAGE_CHINESE_HK	0x0C04	// 香港、马来繁体
 #define LANGUAGE_PAGE_CHINESE_SGP	0x1004	// 新加坡繁体
@@ -34,7 +39,8 @@ enum OSType
     WINDOWS_VISTA,
 	WINDOWS_7,
 	WINDOWS_8,
-    WINDOWS_HIGH
+	WINDOWS_10,
+	WINDOWS_HIGH
 };
 
 // 操作系统补丁类型定义
@@ -88,6 +94,8 @@ public:
 	// 设置根目录
 	static void SetRootPath(CString strPath);
 	// 获取进程路径
+	static CString GetRootPath();
+	// 获取进程路径
 	static CString GetExePath();
 	// 获取Skin路径
 	static CString GetSkinPath();
@@ -118,9 +126,13 @@ public:
 	// 加载图标文件,支持从zip文件中加载
 	BOOL LoadIconFile(CString strFileName, HICON& hIcon);
 	// 加载通用文件到内存,支持从zip文件中加载
-	BOOL LoadFileToBuffer(CString strFileName, BYTE*& pBuffer);
+	BOOL LoadFileToBuffer(CString strFileName, BYTE*& pBuffer, DWORD& dwSize);
 	// 加载界面插件动态库
 	BOOL LoadPluginFile(CString strFileName, CString strObjType, HINSTANCE& hPluginHandle, LPVOID& pPluginObj);
+	// 获取IDuiVisionApp接口
+	IDuiVisionApp* GetIDuiVisionApp();
+	// 加载脚本解释器插件
+	BOOL LoadInterpPlugin(CString strPluginFile, CString strInstName, HINSTANCE& hInterpHandle, LPVOID& pInterpObj);
 	// 获取系统配置信息
 	CString GetConfig(CString strName);
 	// 获取XML文件
@@ -220,9 +232,13 @@ public:
 	BOOL SendInterprocessMessage(UINT uMsg, WPARAM wParam, LPARAM lParam, CString strAppName, CString strInfo);
 
 	// 日志函数
+	static void SetLogParam(CString strLogFile, int nLogLevel, int nLogFileSize = 1024, int nLogFileNumber = 5);
 	void InitLog();
 	void DoneLog();
 	static void	LogEvent(int nLevel, LPCTSTR lpFormat, ...);
+
+	// DPI虚拟化
+	void InitDpiAware(int nDpix = 0, int nDpiy = 0);
 
 protected:
     void createSingletons();
@@ -243,10 +259,13 @@ protected:
 
 	DWORD					m_dwLangID;								// 当前语言ID
 	CString					m_strCurStyle;							// 当前风格名
+	int						m_nDpiAwareType;						// 当前DPI虚拟化类型
+
+	CDuiVisionApp			m_DuiVisionApp;							// DuiVisionApp接口对象
 
 	DuiVision::CTaskMgr		m_TaskMsg;								// 界面消息任务队列
 
-	vector<CDuiObjectInfo*>	m_vecDuiObjectInfo;				// 控件信息对象列表
+	vector<CDuiObjectInfo*>	m_vecDuiObjectInfo;						// 控件信息对象列表
 	vector<CDlgBase*>		m_vecDuiDialog;							// DUI对话框列表
 	vector<CDuiHandler*>	m_vecDuiHandler;						// 事件处理对象列表
 

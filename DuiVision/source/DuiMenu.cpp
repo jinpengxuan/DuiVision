@@ -10,9 +10,9 @@ CDuiMenu::CDuiMenu(CString strFont/* = TEXT("宋体")*/, int nFontWidth/* = 12*/, 
 	m_uAlignment = Align_Left;
 	m_uVAlignment = VAlign_Top;
 
-	m_nLeft = 30;
-	m_nHeight = 30;
-	m_nWidth = 113;
+	m_nLeft = DUI_DPI_X(30);
+	m_nHeight = DUI_DPI_Y(30);
+	m_nWidth = DUI_DPI_X(113);
 	m_nFrameWidth = 0;
 	m_nTopHeight = 0;
 	m_nBottomHeight = 0;
@@ -181,9 +181,9 @@ BOOL CDuiMenu::LoadXmlNode(DuiXmlNode pXmlElem, CString strXmlFile)
 				if(pControl->Load(pControlElem))
 				{
 					// 如果Load成功,则添加控件
-					if(pControl->IsClass(CArea::GetClassName()) || pControl->IsClass(CDuiFrame::GetClassName()))
+					if(pControl->IsClass(CArea::GetClassName()))
 					{
-						// Area和Frame不能响应鼠标,必须加到Area列表中
+						// Area不能响应鼠标,必须加到Area列表中
 						m_vecArea.push_back(pControl);
 					}else
 					{
@@ -271,6 +271,8 @@ BOOL CDuiMenu::LoadXmlFile(CString strFileName, CWnd *pParent, CPoint point, UIN
 // UI初始化,此函数在窗口的OnCreate函数中调用
 void CDuiMenu::InitUI(CRect rcClient)
 {
+	__super::InitUI(rcClient);
+
 	// 如果有菜单项的预设置值,则设置相应的值到控件
 	if(m_vecMenuItemValue.size() > 0)
 	{

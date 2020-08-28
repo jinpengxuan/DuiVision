@@ -113,6 +113,11 @@ void CDuiComboBox::SetComboValue(CString strComboValue)
 // 获取Combo选择项的值
 CString CDuiComboBox::GetComboValue()
 {
+	if (m_strComboValue.IsEmpty() && !IsReadOnly())
+	{
+		return GetTitle();
+	}
+
 	return m_strComboValue;
 }
 
@@ -168,6 +173,42 @@ int CDuiComboBox::AddItem(CString strName, CString strDesc, CString strValue, in
 		return m_pPopupList->AddItem(strName, strDesc, strValue, nResourceID, strImageFile, clrText, clrDesc);
 	}
 	return 0;
+}
+
+// 删除指定Combo页
+void CDuiComboBox::DeleteItem(int nItem)
+{
+	if((nItem < 0) || (nItem >= (int)m_vecItem.size()))
+	{
+		return;
+	}
+
+	CString strValue = _T("");
+	int nIndex = 0;
+	vector<ComboListItem>::iterator it;
+	for(it=m_vecItem.begin();it!=m_vecItem.end();++it)
+	{
+		if(nIndex == nItem)
+		{
+			ComboListItem &comboItem = *it;
+			strValue = comboItem.strValue;
+			m_vecItem.erase(it);
+			break;
+		}
+		nIndex++;
+	}
+
+	// 删除下拉列表中的项
+	if(m_pPopupList)
+	{
+		m_pPopupList->DeleteItem(nItem);
+	}
+
+	// 如果删除的是当前值,则更新编辑框的显示内容,更新为空
+	if(!strValue.IsEmpty() && (strValue == m_strComboValue))
+	{
+		SetTitle(_T(""));
+	}
 }
 
 // 清空Combo下拉项
@@ -259,7 +300,7 @@ HRESULT CDuiComboBox::OnAttributeDeleteImage(const CString& strValue, BOOL bLoad
 // 消息处理
 LRESULT CDuiComboBox::OnMessage(UINT uID, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	if((CONTROL_BUTTON == wParam) && (MSG_BUTTON_DOWN == lParam) && (m_pPopupList == NULL))	// 鼠标点击了编辑框的下拉按钮
+	if((MSG_CONTROL_BUTTON == uMsg) && (CONTROL_BUTTON == wParam) && (MSG_BUTTON_DOWN == lParam) && (m_pPopupList == NULL))	// 鼠标点击了编辑框的下拉按钮
 	{
 		CRect rcClient = GetRect();
 		rcClient.top = rcClient.bottom;
@@ -321,7 +362,7 @@ LRESULT CDuiComboBox::OnMessage(UINT uID, UINT uMsg, WPARAM wParam, LPARAM lPara
 		// 显示下拉列表窗口
 		pPopupList->ShowWindow(SW_SHOW);
 	}else
-	if((SELECT_ITEM == wParam) && m_pPopupList)	// 下拉框选择
+	if((MSG_CONTROL_SELECT == uMsg) && m_pPopupList)	// 下拉框选择
 	{
 		CString strName;
 		m_pPopupList->GetItemName(lParam, strName);
@@ -340,12 +381,12 @@ LRESULT CDuiComboBox::OnMessage(UINT uID, UINT uMsg, WPARAM wParam, LPARAM lPara
 		}
 		m_pPopupList = NULL;
 	}else
-	if((DELETE_ITEM == wParam) && m_pPopupList)	// 删除下拉框列表项
+	if((MSG_CONTROL_DELETE == uMsg) && m_pPopupList)	// 删除下拉框列表项
 	{
 		// 如果设置了删除按钮图片，才可以进行删除
 		if(!m_strImageDeleteBitmap.IsEmpty() || (m_nResourceIDDeleteBitmap != 0))
 		{
-			m_pPopupList->DeleteItem(lParam);
+			DeleteItem(lParam);
 		}
 	}
 
@@ -359,7 +400,7 @@ BOOL CDuiComboBox::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	if(m_bDown && (nChar == VK_DOWN) && (nFlags == 0) && IsFocusControl())
 	{
 		// 模拟鼠标点击
-		SendMessage(m_uID, CONTROL_BUTTON, MSG_BUTTON_DOWN);
+		SendMessage(MSG_CONTROL_BUTTON, CONTROL_BUTTON, MSG_BUTTON_DOWN);
 		return true;
 	}
 

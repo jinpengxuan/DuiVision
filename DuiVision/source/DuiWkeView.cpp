@@ -2,6 +2,8 @@
 #include "DuiWkeView.h"
 #include <Imm.h>
 
+#ifdef SUPPORT_WKE
+
 #pragma comment(lib, "imm32.lib")		// 自动链接imm库
 #pragma message("Automatically linking with imm32.lib")
 
@@ -150,10 +152,7 @@ HRESULT CDuiWkeView::OnAttributeUrl(const CString& strValue, BOOL bLoading)
 	if (strValue.IsEmpty()) return E_FAIL;
 
 	m_strUrl = strValue;
-	if(m_pWebView != NULL)
-	{
-		m_pWebView->loadURL(m_strUrl);
-	}
+	Navigate(m_strUrl);
 
 	return bLoading?S_FALSE:S_OK;
 }
@@ -213,12 +212,19 @@ bool CDuiWkeView::CreateControl()
 	m_wkeHander.onTitleChanged = onTitleChanged;
 	m_wkeHander.onURLChanged = onURLChanged;
 
-	// 创建wke视图,并加载url
+	// 创建wke视图,并加载url或html内容
 	m_pWebView = wkeCreateWebView();
 	m_pWebView->setTransparent(m_bTransparent);
 	m_pWebView->setClientHandler(&m_wkeHander);
 	m_pWebView->setBufHandler(this);
-	m_pWebView->loadURL(m_strUrl);
+	if(!m_strUrl.IsEmpty())
+	{
+		Navigate(m_strUrl);
+	}else
+	if(!m_strHtml.IsEmpty())
+	{
+		loadHTML(m_strHtml);
+	}
 
 	// 注册窗口类
 	RegisterWindowClass();
@@ -773,7 +779,19 @@ void CDuiWkeView::Navigate(CString strUrl)
 {
 	if(m_pWebView)
 	{
-		m_pWebView->loadURL(strUrl);
+		if(strUrl.Find(_T("file://")) == 0)
+		{
+			CString strFile = strUrl;
+			strFile.Delete(0, 7);
+			if(strFile.Find(_T(":")) == -1)
+			{
+				strFile = DuiSystem::GetSkinPath() + strFile;
+			}
+			m_pWebView->loadFile(strFile);
+		}else
+		{
+			m_pWebView->loadURL(strUrl);
+		}
 		m_render.render(m_pWebView);
 	}
 }
@@ -847,3 +865,5 @@ bool CDuiWkeView::goForward()
 	}
 	return false;
 }
+
+#endif

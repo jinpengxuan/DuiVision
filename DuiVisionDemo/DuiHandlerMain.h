@@ -13,6 +13,9 @@ public:
 
 	virtual void OnInit();
 
+	// Windwos关机重启消息处理
+	LRESULT OnDuiMsgQueryEndSession(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam);
+
 	// 皮肤选择消息处理
 	LRESULT OnDuiMsgSkin(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam);
 
@@ -42,6 +45,7 @@ public:
 	LRESULT OnDuiMsgListCtrl2DblClick(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam);
 	LRESULT OnDuiMsgGridCtrlDblClick(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam);
 	LRESULT OnDuiMsgGridCtrlDelBtnClick(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam);
+	LRESULT OnDuiMsgGridCtrlDropFile(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam);
 	LRESULT OnDuiMsgTreeCtrlClick(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam);
 	LRESULT OnDuiMsgTreeCtrlDblClick(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam);
 	LRESULT OnDuiMsgMenuOption(UINT uID, CString strName, UINT Msg, WPARAM wParam, LPARAM lParam);
@@ -69,6 +73,7 @@ public:
 	// 消息处理定义
 	DUI_DECLARE_MESSAGE_BEGIN(CDuiHandlerMain)
 		DUI_CONTROL_ID_MESSAGE(APP_IPC, OnDuiMsgInterprocess)
+		DUI_CONTROL_MSG_MESSAGE(MSG_WM_QUERYENDSESSION, OnDuiMsgQueryEndSession)
 		DUI_CONTROL_NAME_MESSAGE(NAME_SKIN_WND, OnDuiMsgSkin)
 		DUI_CONTROL_NAMEMSG_MESSAGE(NAME_TRAY_ICON, MSG_TRAY_DBCLICK, OnDuiMsgTrayIconDClick)
 		DUI_CONTROL_NAMEMSG_MESSAGE(NAME_TRAY_ICON, MSG_TRAY_LBUTTONDOWN, OnDuiMsgTrayIconLButtonDown)
@@ -91,7 +96,8 @@ public:
 		DUI_CONTROL_NAMEMSG_MESSAGE(_T("listctrl_2"), MSG_BUTTON_DOWN, OnDuiMsgListCtrl2Click)
 		DUI_CONTROL_NAMEMSG_MESSAGE(_T("listctrl_2"), MSG_BUTTON_DBLCLK, OnDuiMsgListCtrl2DblClick)
 		DUI_CONTROL_NAMEMSG_MESSAGE(_T("gridctrl_1"), MSG_BUTTON_DBLCLK, OnDuiMsgGridCtrlDblClick)
-		DUI_CONTROL_NAMEMSG_MESSAGE(_T("grid_btn_delete"), MSG_BUTTON_DOWN, OnDuiMsgGridCtrlDelBtnClick)
+		DUI_CONTROL_NAMEMSG_MESSAGE(_T("gridctrl_1"), MSG_DROP_FILE, OnDuiMsgGridCtrlDropFile)
+		DUI_CONTROL_NAMEMSG_MESSAGE(_T("grid_btn_delete"), MSG_BUTTON_UP, OnDuiMsgGridCtrlDelBtnClick)
 		DUI_CONTROL_NAMEMSG_MESSAGE(_T("treectrl_1"), MSG_BUTTON_DOWN, OnDuiMsgTreeCtrlClick)
 		DUI_CONTROL_NAMEMSG_MESSAGE(_T("treectrl_1"), MSG_BUTTON_DBLCLK, OnDuiMsgTreeCtrlDblClick)
 		DUI_CONTROL_NAMEMSG_MESSAGE(_T("item_setup"), MSG_BUTTON_UP, OnDuiMsgMenuOption)

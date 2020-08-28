@@ -1,14 +1,14 @@
 #include "StdAfx.h"
 #include "ImageString.h"
 
-CImageString::CImageString(HWND hWnd, CDuiObject* pDuiObject)
+CDuiImageString::CDuiImageString(HWND hWnd, CDuiObject* pDuiObject)
 : CControlBaseFont(hWnd, pDuiObject)
 {
 	m_pImage = NULL;
 	SetTitle(0);
 }
 
-CImageString::CImageString(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc, int nNumber, 
+CDuiImageString::CDuiImageString(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc, int nNumber, 
 						   UINT uAlignment/* = DT_CENTER*/, UINT uVAlignment/* = DT_VCENTER*/, BOOL bIsVisible/* = TRUE*/, BOOL bIsDisable/* = FALSE*/)
 : CControlBaseFont(hWnd, pDuiObject, uControlID, rc, TEXT(""), bIsVisible, bIsDisable, false)
 {
@@ -19,7 +19,7 @@ CImageString::CImageString(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, C
 	SetTitle(nNumber);
 }
 
-CImageString::CImageString(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc, CString strTitle, 
+CDuiImageString::CDuiImageString(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc, CString strTitle, 
 						   UINT uAlignment/* = DT_CENTER*/, UINT uVAlignment/* = DT_VCENTER*/, BOOL bIsVisible/* = TRUE*/, BOOL bIsDisable/* = FALSE*/)
 : CControlBaseFont(hWnd, pDuiObject, uControlID, rc, strTitle, bIsVisible, bIsDisable, false)
 {
@@ -28,13 +28,13 @@ CImageString::CImageString(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, C
 	m_uVAlignment = uVAlignment;
 }
 
-CImageString::~CImageString(void)
+CDuiImageString::~CDuiImageString(void)
 {
 
 }
 
 // 从XML设置图片掩码信息属性
-HRESULT CImageString::OnAttributeMask(const CString& strValue, BOOL bLoading)
+HRESULT CDuiImageString::OnAttributeMask(const CString& strValue, BOOL bLoading)
 {
 	if (strValue.IsEmpty()) return E_FAIL;
 
@@ -42,19 +42,22 @@ HRESULT CImageString::OnAttributeMask(const CString& strValue, BOOL bLoading)
 	SetBitmapCount(m_strMask.GetLength());
 
 	m_sizeImage.SetSize(m_pImage->GetWidth() / m_nImagePicCount, m_pImage->GetHeight());
+	m_sizeImageDpi.SetSize(m_sizeImage.cx, m_sizeImage.cy);
+	CDuiWinDwmWrapper::AdapterDpi(m_sizeImageDpi.cx, m_sizeImageDpi.cy);
+
 	UpdateControl(true);
 
 	return bLoading?S_FALSE:S_OK;
 }
 
-void CImageString::SetTitle(int nNumber)
+void CDuiImageString::SetTitle(int nNumber)
 {
 	CString strTitle;
 	strTitle.Format(TEXT("%d"), nNumber);
 	__super::SetTitle(strTitle);
 }
 
-void CImageString::DrawControl(CDC &dc, CRect rcUpdate)
+void CDuiImageString::DrawControl(CDC &dc, CRect rcUpdate)
 {
 	int nWidth = m_rc.Width();
 	int nHeight = m_rc.Height();
@@ -72,20 +75,20 @@ void CImageString::DrawControl(CDC &dc, CRect rcUpdate)
 		int nYPos = 0;
 		if(m_uAlignment == Align_Center)
 		{
-			nXPos = (nWidth - nLen * m_sizeImage.cx) / 2;
+			nXPos = (nWidth - nLen * m_sizeImageDpi.cx) / 2;
 		}
 		else if(m_uAlignment == Align_Right)
 		{
-			nXPos = nWidth - nLen * m_sizeImage.cx;
+			nXPos = nWidth - nLen * m_sizeImageDpi.cx;
 		}
 
 		if(m_uVAlignment == VAlign_Middle)
 		{
-			nYPos = (nHeight - m_sizeImage.cy) / 2;
+			nYPos = (nHeight - m_sizeImageDpi.cy) / 2;
 		}
 		else if(m_uVAlignment == VAlign_Bottom)
 		{
-			nYPos = nHeight - m_sizeImage.cy;
+			nYPos = nHeight - m_sizeImageDpi.cy;
 		}
 
 		for(int i = 0; i < nLen; i++)
@@ -93,18 +96,18 @@ void CImageString::DrawControl(CDC &dc, CRect rcUpdate)
 			int nImageIndex = GetImageIndex(i);
 			if(nImageIndex != -1)
 			{
-				graphics.DrawImage(m_pImage, Rect(nXPos , nYPos,  m_sizeImage.cx, m_sizeImage.cy),
+				graphics.DrawImage(m_pImage, Rect(nXPos , nYPos,  m_sizeImageDpi.cx, m_sizeImageDpi.cy),
 					nImageIndex * m_sizeImage.cx, 0, m_sizeImage.cx, m_sizeImage.cy, UnitPixel);
 			}
 
-			nXPos += m_sizeImage.cx;
+			nXPos += m_sizeImageDpi.cx;
 		}
 	}
 
 	dc.BitBlt(m_rc.left,m_rc.top, m_rc.Width(), m_rc.Height(), &m_memDC, 0, 0, SRCCOPY);
 }
 
-int CImageString::GetImageIndex(int nIndex)
+int CDuiImageString::GetImageIndex(int nIndex)
 {
 	int nLen = m_strTitle.GetLength();
 	if(nIndex < nLen)

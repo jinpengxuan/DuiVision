@@ -73,6 +73,8 @@ DuiPlugin\DuiHandlerPlugin.cpp
 [duivision]common\registry.h
 [duivision]common\TaskMgr.cpp
 [duivision]common\TaskMgr.h
+[duivision]common\WinDwmWrapper.cpp
+[duivision]common\WinDwmWrapper.h
 [duivision]common\XUnzip.cpp
 [duivision]common\XUnZip.h
 
@@ -88,6 +90,7 @@ DuiPlugin\DuiHandlerPlugin.cpp
 [duivision]include\DlgPopup.h
 [duivision]include\DlgSkin.h
 [duivision]include\DuiActiveX.h
+[duivision]include\DuiAnimateImg.h
 [duivision]include\DuiButton.h
 [duivision]include\DuiComboBox.h
 [duivision]include\DuiDef.h
@@ -108,13 +111,15 @@ DuiPlugin\DuiHandlerPlugin.cpp
 [duivision]include\DuiText.h
 [duivision]include\DuiTreeCtrl.h
 [duivision]include\DuiVision.h
+[duivision]include\DuiVisionApp.h
 [duivision]include\DuiWkeView.h
 [duivision]include\DuiXml.h
-[duivision]include\Frame.h
 [duivision]include\GlobalFunction.h
 [duivision]include\HideButton.h
 [duivision]include\IDuiHostWnd.h
 [duivision]include\IDuiPlugin.h
+[duivision]include\IDuiVisionApp.h
+[duivision]include\IInterp.h
 [duivision]include\ImageString.h
 [duivision]include\LinkButton.h
 [duivision]include\MenuItem.h
@@ -124,7 +129,6 @@ DuiPlugin\DuiHandlerPlugin.cpp
 [duivision]include\Progress.h
 [duivision]include\RadioButton.h
 [duivision]include\Rectangle.h
-[duivision]include\Runing.h
 [duivision]include\Scroll.h
 [duivision]include\SelectBox.h
 [duivision]include\TextButton.h
@@ -140,6 +144,7 @@ DuiPlugin\DuiHandlerPlugin.cpp
 [duivision]source\DlgPopup.cpp
 [duivision]source\DlgSkin.cpp
 [duivision]source\DuiActiveX.cpp
+[duivision]source\DuiAnimateImg.cpp
 [duivision]source\DuiButton.cpp
 [duivision]source\DuiComboBox.cpp
 [duivision]source\DuiEdit.cpp
@@ -156,9 +161,9 @@ DuiPlugin\DuiHandlerPlugin.cpp
 [duivision]source\DuiTab.cpp
 [duivision]source\DuiText.cpp
 [duivision]source\DuiTreeCtrl.cpp
+[duivision]source\DuiVisionApp.cpp
 [duivision]source\DuiWkeView.cpp
 [duivision]source\DuiXml.cpp
-[duivision]source\Frame.cpp
 [duivision]source\GlobalFunction.cpp
 [duivision]source\HideButton.cpp
 [duivision]source\ImageString.cpp
@@ -170,7 +175,6 @@ DuiPlugin\DuiHandlerPlugin.cpp
 [duivision]source\Progress.cpp
 [duivision]source\RadioButton.cpp
 [duivision]source\Rectangle.cpp
-[duivision]source\Runing.cpp
 [duivision]source\Scroll.cpp
 [duivision]source\SelectBox.cpp
 [duivision]source\TextButton.cpp

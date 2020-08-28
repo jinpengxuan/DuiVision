@@ -9,6 +9,8 @@ CDuiTreeCtrl::CDuiTreeCtrl(HWND hWnd, CDuiObject* pDuiObject)
 {
 	m_strFontTitle = DuiSystem::GetDefaultFont();
 	m_nFontTitleWidth = 12;
+	// 按照当前DPI计算字体的显示大小
+	CDuiWinDwmWrapper::AdapterDpi(m_nFontTitleWidth);
 	m_fontTitleStyle = FontStyleRegular;
 
 	m_clrText = Color(225, 64, 64, 64);
@@ -17,6 +19,7 @@ CDuiTreeCtrl::CDuiTreeCtrl(HWND hWnd, CDuiObject* pDuiObject)
 	m_clrTitle = Color(255, 32, 32, 32);
 	m_clrSeperator = Color(0, 0, 0, 0);
 	m_clrRowHover = Color(0, 128, 128, 128);	// 鼠标移动到行显示的背景色,默认是透明色
+	m_clrRowCurrent = Color(0, 128, 128, 128);	// 当前行显示的背景色,默认是透明色
 	m_nRowHeight = 50;
 	m_nLeftPos = 0;
 
@@ -46,6 +49,7 @@ CDuiTreeCtrl::CDuiTreeCtrl(HWND hWnd, CDuiObject* pDuiObject)
 
 	m_nFirstViewRow = 0;
 	m_nVirtualTop = 0;
+	m_nVirtualLeft = 0;
 	m_nVisibleRowCount = 0;
 
 	m_nNodeIndex = 1;
@@ -108,7 +112,7 @@ BOOL CDuiTreeCtrl::Load(DuiXmlNode pXmlElem, BOOL bLoadSubControl)
 		int nWidth = -1;
 		if(!strWidth.IsEmpty())
 		{
-			nWidth = _ttoi(strWidth);
+			nWidth = DUI_DPI_X(_ttoi(strWidth));
 		}
 		InsertColumn(-1, strTitle, nWidth, clrText);
 	}
@@ -116,14 +120,16 @@ BOOL CDuiTreeCtrl::Load(DuiXmlNode pXmlElem, BOOL bLoadSubControl)
 	// 加载下层的node节点信息
 	LoadNode(NULL, pXmlElem);
 
-	// 刷新所有行
-	//RefreshNodeRows();
+	// 计算横向滚动条
+	CalcColumnsPos();
+	// 计算每一行的位置和滚动条
+	RefreshNodeRows();
 
     return TRUE;
 }
 
 // 加载XML树节点
-BOOL CDuiTreeCtrl::LoadNode(HTREEITEM hParentNode, DuiXmlNode pXmlElem)
+BOOL CDuiTreeCtrl::LoadNode(HDUITREEITEM hParentNode, DuiXmlNode pXmlElem)
 {
 	// 加载下层的Node节点信息
 	for (DuiXmlNode pNodeElem = pXmlElem.child(_T("node")); pNodeElem; pNodeElem=pNodeElem.next_sibling(_T("node")))
@@ -218,7 +224,7 @@ BOOL CDuiTreeCtrl::LoadNode(HTREEITEM hParentNode, DuiXmlNode pXmlElem)
 		{
 			nodeInfo.bRowBackColor = TRUE;
 		}
-		HTREEITEM hNode = InsertNode(hParentNode, nodeInfo);
+		HDUITREEITEM hNode = InsertNode(hParentNode, nodeInfo);
 		if(hNode == NULL)
 		{
 			continue;
@@ -346,12 +352,138 @@ BOOL CDuiTreeCtrl::InsertColumn(int nColumn, CString strTitle, int nWidth, Color
 		nXPos += columnInfoTemp.nWidth;
 	}
 
+	// 计算横向滚动条
+	CalcColumnsPos();
+
 	UpdateControl(true);
 	return true;
 }
 
+// 设置列宽度
+int CDuiTreeCtrl::SetColumnWidth(int nColumn, int nWidth, int nWidthNextColumn)
+{
+	int nXPos = 0;
+	int nYPos = 0;
+
+	int nWidthResult = 0;
+	for(size_t i = 0; i < m_vecColumnInfo.size(); i++)
+	{
+		TreeColumnInfo &columnInfoTemp = m_vecColumnInfo.at(i);
+		if(i == nColumn)
+		{
+			columnInfoTemp.nWidth = nWidth;
+		}else
+		if((i == (nColumn+1)) && (nWidthNextColumn != -1))
+		{
+			columnInfoTemp.nWidth = nWidthNextColumn;
+		}
+		int _nWidth = columnInfoTemp.nWidth;
+		if(_nWidth == -1)	// -1表示最后一列为自适应宽度
+		{
+			_nWidth = m_rc.Width() - nXPos;
+			if(_nWidth < 0)
+			{
+				_nWidth = DUI_DPI_X(100);	// 如果宽度不够,设置一个最小值
+			}
+		}
+		if(i == nColumn)
+		{
+			nWidthResult = _nWidth;
+		}
+		columnInfoTemp.rcHeader.SetRect(nXPos, nYPos, nXPos + _nWidth, nYPos + m_nRowHeight);
+		nXPos += columnInfoTemp.nWidth;
+	}
+
+	// 计算横向滚动条
+	CalcColumnsPos();
+	// 重新计算所有行的位置
+	RefreshNodeRows();
+
+	UpdateControl(true);
+
+	return nWidthResult;
+}
+
+// 移动列分隔线位置
+void CDuiTreeCtrl::MoveColumnSplit(int nColumn, int nPos)
+{
+	if((size_t)nColumn < m_vecColumnInfo.size())
+	{
+		TreeColumnInfo &columnInfo1 = m_vecColumnInfo.at(nColumn);
+		int nWidth1 = columnInfo1.nWidth;
+		if(nWidth1 == -1)	// -1表示最后一列为自适应宽度
+		{
+			nWidth1 = m_rc.Width() - columnInfo1.rcHeader.right;
+			if(nWidth1 < 0)
+			{
+				nWidth1 = 100;	// 如果宽度不够,设置一个最小值
+			}
+		}
+		nWidth1 += (nPos - columnInfo1.rcHeader.right);
+
+		int nWidth2 = -1;
+		if((size_t)(nColumn+1) < m_vecColumnInfo.size())
+		{
+			TreeColumnInfo &columnInfo2 = m_vecColumnInfo.at(nColumn+1);
+			nWidth2 = columnInfo2.nWidth;
+		}
+
+		if(nWidth1 < 0)
+		{
+			return;
+		}
+
+		// 调整列宽,仅调整前面的列宽度,后面的不变
+		SetColumnWidth(nColumn, nWidth1, nWidth2);
+	}
+}
+
+// 获取总的列宽
+int CDuiTreeCtrl::GetTotalColumnWidth()
+{
+	int nTotalWidth = 0;
+
+	for(size_t i = 0; i < m_vecColumnInfo.size(); i++)
+	{
+		TreeColumnInfo &columnInfoTemp = m_vecColumnInfo.at(i);
+		int nWidth = columnInfoTemp.nWidth;
+		if(nWidth == -1)	// -1表示最后一列为自适应宽度
+		{
+			nWidth = m_rc.Width() - nTotalWidth;
+			if(nWidth < 0)
+			{
+				nWidth = 100;	// 如果宽度不够,设置一个最小值
+			}
+		}
+		nTotalWidth += nWidth;
+	}
+
+	return nTotalWidth;
+}
+
+// 计算列位置
+void CDuiTreeCtrl::CalcColumnsPos()
+{
+	int nTotalWidth = GetTotalColumnWidth();
+
+	// 需要的总高度大于显示区高度才会显示滚动条
+	m_pControScrollH->SetVisible(nTotalWidth > m_rc.Width());
+	((CDuiScrollHorizontal*)m_pControScrollH)->SetScrollMaxRange(nTotalWidth);
+
+	// 设置水平滚动条位置
+	if(nTotalWidth > m_rc.Width())
+	{
+		CRect rcTemp = m_rc;
+		rcTemp.top = rcTemp.bottom - m_nScrollWidth;
+		rcTemp.right = rcTemp.right - m_nScrollWidth;
+		m_pControScrollH->SetRect(rcTemp);
+		// 水平滚动条当前位置保持不变
+		//((CDuiScrollHorizontal*)m_pControScrollH)->SetScrollCurrentPos();
+	}
+}
+
 // 添加树节点
-HTREEITEM CDuiTreeCtrl::InsertNode(HTREEITEM hParentNode, CString strId, CString strTitle, BOOL bCollapse,
+HDUITREEITEM CDuiTreeCtrl::InsertNode(HDUITREEITEM hParentNode, CString strId, CString strTitle, BOOL bCollapse,
 							int nImageIndex, Color clrText, CString strImage,
 							int nRightImageIndex, CString strRightImage, int nCheck, Color clrBack)
 {
@@ -386,6 +518,8 @@ HTREEITEM CDuiTreeCtrl::InsertNode(HTREEITEM hParentNode, CString strId, CString
 		if(DuiSystem::Instance()->LoadImageFile(strImage, m_bImageUseECM, nodeInfo.pImage))
 		{
 			nodeInfo.sizeImage.SetSize(nodeInfo.pImage->GetWidth() / 1, nodeInfo.pImage->GetHeight());
+			nodeInfo.sizeImageDpi = nodeInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(nodeInfo.sizeImageDpi.cx, nodeInfo.sizeImageDpi.cy);
 		}
 	}else
 	{
@@ -394,6 +528,8 @@ HTREEITEM CDuiTreeCtrl::InsertNode(HTREEITEM hParentNode, CString strId, CString
 		if((nodeInfo.nImageIndex != -1) && (m_pImage != NULL) && (m_pImage->GetLastStatus() == Ok))
 		{
 			nodeInfo.sizeImage.SetSize(m_sizeImage.cx, m_sizeImage.cy);
+			nodeInfo.sizeImageDpi = nodeInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(nodeInfo.sizeImageDpi.cx, nodeInfo.sizeImageDpi.cy);
 		}
 	}
 
@@ -404,6 +540,8 @@ HTREEITEM CDuiTreeCtrl::InsertNode(HTREEITEM hParentNode, CString strId, CString
 		if(DuiSystem::Instance()->LoadImageFile(strRightImage, m_bImageUseECM, nodeInfo.pRightImage))
 		{
 			nodeInfo.sizeRightImage.SetSize(nodeInfo.pRightImage->GetWidth() / 1, nodeInfo.pRightImage->GetHeight());
+			nodeInfo.sizeRightImageDpi = nodeInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(nodeInfo.sizeRightImageDpi.cx, nodeInfo.sizeRightImageDpi.cy);
 		}
 	}else
 	{
@@ -412,10 +550,12 @@ HTREEITEM CDuiTreeCtrl::InsertNode(HTREEITEM hParentNode, CString strId, CString
 		if((nodeInfo.nRightImageIndex != -1) && (m_pImage != NULL) && (m_pImage->GetLastStatus() == Ok))
 		{
 			nodeInfo.sizeRightImage.SetSize(m_sizeImage.cx, m_sizeImage.cy);
+			nodeInfo.sizeRightImageDpi = nodeInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(nodeInfo.sizeRightImageDpi.cx, nodeInfo.sizeRightImageDpi.cy);
 		}
 	}
 
-	HTREEITEM hNode = InsertNode(hParentNode, nodeInfo);
+	HDUITREEITEM hNode = InsertNode(hParentNode, nodeInfo);
 
 	if(!strTitle.IsEmpty() && (hNode != NULL))
 	{
@@ -426,7 +566,7 @@ HTREEITEM CDuiTreeCtrl::InsertNode(HTREEITEM hParentNode, CString strId, CString
 }
 
 // 添加树节点
-HTREEITEM CDuiTreeCtrl::InsertNode(HTREEITEM hParentNode, TreeNodeInfo &nodeInfo)
+HDUITREEITEM CDuiTreeCtrl::InsertNode(HDUITREEITEM hParentNode, TreeNodeInfo &nodeInfo)
 {
 	nodeInfo.hNode = m_nNodeIndex++;
 
@@ -461,7 +601,7 @@ HTREEITEM CDuiTreeCtrl::InsertNode(HTREEITEM hParentNode, TreeNodeInfo &nodeInfo
 }
 
 // 设置表格项内容(文字表格项)
-BOOL CDuiTreeCtrl::SetSubItem(HTREEITEM hNode, int nItem, CString strTitle, CString strContent, BOOL bUseTitleFont, int nImageIndex, Color clrText, CString strImage)
+BOOL CDuiTreeCtrl::SetSubItem(HDUITREEITEM hNode, int nItem, CString strTitle, CString strContent, BOOL bUseTitleFont, int nImageIndex, Color clrText, CString strImage)
 {
 	int nRow = GetNodeRow(hNode);
 	if(nRow == -1)
@@ -514,6 +654,8 @@ BOOL CDuiTreeCtrl::SetSubItem(HTREEITEM hNode, int nItem, CString strTitle, CStr
 		if(DuiSystem::Instance()->LoadImageFile(strImage, m_bImageUseECM, itemInfo.pImage))
 		{
 			itemInfo.sizeImage.SetSize(itemInfo.pImage->GetWidth() / 1, itemInfo.pImage->GetHeight());
+			itemInfo.sizeImageDpi = itemInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy);
 		}
 	}else
 	{
@@ -522,6 +664,8 @@ BOOL CDuiTreeCtrl::SetSubItem(HTREEITEM hNode, int nItem, CString strTitle, CStr
 		if((itemInfo.nImageIndex != -1) && (m_pImage != NULL) && (m_pImage->GetLastStatus() == Ok))
 		{
 			itemInfo.sizeImage.SetSize(m_sizeImage.cx, m_sizeImage.cy);
+			itemInfo.sizeImageDpi = itemInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy);
 		}
 	}
 
@@ -529,7 +673,7 @@ BOOL CDuiTreeCtrl::SetSubItem(HTREEITEM hNode, int nItem, CString strTitle, CStr
 }
 
 // 设置表格项内容(链接表格项)
-BOOL CDuiTreeCtrl::SetSubItemLink(HTREEITEM hNode, int nItem, CString strLink, CString strLinkAction, int nImageIndex, Color clrText, CString strImage)
+BOOL CDuiTreeCtrl::SetSubItemLink(HDUITREEITEM hNode, int nItem, CString strLink, CString strLinkAction, int nImageIndex, Color clrText, CString strImage)
 {
 	int nRow = GetNodeRow(hNode);
 	if(nRow == -1)
@@ -582,6 +726,8 @@ BOOL CDuiTreeCtrl::SetSubItemLink(HTREEITEM hNode, int nItem, CString strLink, C
 		if(DuiSystem::Instance()->LoadImageFile(strImage, m_bImageUseECM, itemInfo.pImage))
 		{
 			itemInfo.sizeImage.SetSize(itemInfo.pImage->GetWidth() / 1, itemInfo.pImage->GetHeight());
+			itemInfo.sizeImageDpi = itemInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy);
 		}
 	}else
 	{
@@ -590,6 +736,8 @@ BOOL CDuiTreeCtrl::SetSubItemLink(HTREEITEM hNode, int nItem, CString strLink, C
 		if((itemInfo.nImageIndex != -1) && (m_pImage != NULL) && (m_pImage->GetLastStatus() == Ok))
 		{
 			itemInfo.sizeImage.SetSize(m_sizeImage.cx, m_sizeImage.cy);
+			itemInfo.sizeImageDpi = itemInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy);
 		}
 	}
 
@@ -597,7 +745,7 @@ BOOL CDuiTreeCtrl::SetSubItemLink(HTREEITEM hNode, int nItem, CString strLink, C
 }
 
 // 设置表格项为收缩图片显示
-BOOL CDuiTreeCtrl::SetSubItemCollapse(HTREEITEM hNode, int nItem, CString strImage, int nImageCount)
+BOOL CDuiTreeCtrl::SetSubItemCollapse(HDUITREEITEM hNode, int nItem, CString strImage, int nImageCount)
 {
 	int nRow = GetNodeRow(hNode);
 	if(nRow == -1)
@@ -651,6 +799,8 @@ BOOL CDuiTreeCtrl::SetSubItemCollapse(HTREEITEM hNode, int nItem, CString strIma
 				itemInfo.nImageCount = 6;
 			}
 			itemInfo.sizeImage.SetSize(itemInfo.pImage->GetWidth() / itemInfo.nImageCount, itemInfo.pImage->GetHeight());
+			itemInfo.sizeImageDpi = itemInfo.sizeImage;
+			CDuiWinDwmWrapper::AdapterDpi(itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy);
 		}
 	}
 
@@ -658,7 +808,7 @@ BOOL CDuiTreeCtrl::SetSubItemCollapse(HTREEITEM hNode, int nItem, CString strIma
 }
 
 // 给树节点单元格添加子控件
-BOOL CDuiTreeCtrl::AddSubItemControl(HTREEITEM hNode, int nItem, CControlBase* pControl)
+BOOL CDuiTreeCtrl::AddSubItemControl(HDUITREEITEM hNode, int nItem, CControlBase* pControl)
 {
 	int nRow = GetNodeRow(hNode);
 	if(nRow == -1)
@@ -754,7 +904,7 @@ BOOL CDuiTreeCtrl::DeleteSubItemControl(CString strControlName, UINT uControlID)
 }
 
 // 删除节点
-BOOL CDuiTreeCtrl::DeleteNode(HTREEITEM hNode)
+BOOL CDuiTreeCtrl::DeleteNode(HDUITREEITEM hNode)
 {
 	int nRow = GetNodeRow(hNode);
 	if(nRow == -1)
@@ -795,7 +945,7 @@ BOOL CDuiTreeCtrl::DeleteNode(HTREEITEM hNode)
 }
 
 // 获取节点的行号
-int CDuiTreeCtrl::GetNodeRow(HTREEITEM hNode)
+int CDuiTreeCtrl::GetNodeRow(HDUITREEITEM hNode)
 {
 	for(size_t i = 0; i < m_vecRowInfo.size(); i++)
 	{
@@ -809,11 +959,26 @@ int CDuiTreeCtrl::GetNodeRow(HTREEITEM hNode)
 	return -1;
 }
 
+// 根据节点ID获取节点行号
+int CDuiTreeCtrl::GetNodeRowById(CString strNodeId)
+{
+	for (size_t i = 0; i < m_vecRowInfo.size(); i++)
+	{
+		TreeNodeInfo& rowInfoTemp = m_vecRowInfo.at(i);
+		if (rowInfoTemp.strId == strNodeId)
+		{
+			return i;
+		}
+	}
+
+	return -1;
+}
+
 // 获取节点的最后一个子节点行号(遍历到最底层的子节点)
-int CDuiTreeCtrl::GetNodeLastChildRow(HTREEITEM hNode)
+int CDuiTreeCtrl::GetNodeLastChildRow(HDUITREEITEM hNode)
 {
 	int nRow = -1;
-	HTREEITEM hLastChildNode = NULL;
+	HDUITREEITEM hLastChildNode = NULL;
 	for(size_t i = 0; i < m_vecRowInfo.size(); i++)
 	{
 		TreeNodeInfo &rowInfoTemp = m_vecRowInfo.at(i);
@@ -836,8 +1001,20 @@ int CDuiTreeCtrl::GetNodeLastChildRow(HTREEITEM hNode)
 	return nRow;
 }
 
+// 获取当前点击的节点句柄
+HDUITREEITEM CDuiTreeCtrl::GetCurrentNode()
+{
+	if((m_nDownRow < 0) || ((UINT)m_nDownRow >= m_vecRowInfo.size()))
+	{
+		return NULL;
+	}
+
+	TreeNodeInfo &rowInfo = m_vecRowInfo.at(m_nDownRow);
+	return rowInfo.hNode;
+}
+
 // 判断一个节点是否有子节点
-BOOL CDuiTreeCtrl::HaveChildNode(HTREEITEM hNode)
+BOOL CDuiTreeCtrl::HaveChildNode(HDUITREEITEM hNode)
 {
 	for(size_t i = 0; i < m_vecRowInfo.size(); i++)
 	{
@@ -852,7 +1029,7 @@ BOOL CDuiTreeCtrl::HaveChildNode(HTREEITEM hNode)
 }
 
 // 获取父节点句柄
-HTREEITEM CDuiTreeCtrl::GetParentNode(HTREEITEM hNode)
+HDUITREEITEM CDuiTreeCtrl::GetParentNode(HDUITREEITEM hNode)
 {
 	TreeNodeInfo* pNodeInfo = GetNodeInfo(hNode);
 	if(pNodeInfo)
@@ -864,7 +1041,7 @@ HTREEITEM CDuiTreeCtrl::GetParentNode(HTREEITEM hNode)
 }
 
 // 获取第一个子节点句柄
-HTREEITEM CDuiTreeCtrl::GetChildNode(HTREEITEM hNode)
+HDUITREEITEM CDuiTreeCtrl::GetChildNode(HDUITREEITEM hNode)
 {
 	for(size_t i = 0; i < m_vecRowInfo.size(); i++)
 	{
@@ -879,10 +1056,10 @@ HTREEITEM CDuiTreeCtrl::GetChildNode(HTREEITEM hNode)
 }
 
 // 获取下一个子节点句柄
-HTREEITEM CDuiTreeCtrl::GetNextSiblingNode(HTREEITEM hNode)
+HDUITREEITEM CDuiTreeCtrl::GetNextSiblingNode(HDUITREEITEM hNode)
 {
 	BOOL bFind = FALSE;
-	HTREEITEM hParentNode = NULL;
+	HDUITREEITEM hParentNode = NULL;
 	for(size_t i = 0; i < m_vecRowInfo.size(); i++)
 	{
 		TreeNodeInfo &rowInfoTemp = m_vecRowInfo.at(i);
@@ -901,10 +1078,10 @@ HTREEITEM CDuiTreeCtrl::GetNextSiblingNode(HTREEITEM hNode)
 }
 
 // 获取前一个子节点句柄
-HTREEITEM CDuiTreeCtrl::GetPrevSiblingNode(HTREEITEM hNode)
+HDUITREEITEM CDuiTreeCtrl::GetPrevSiblingNode(HDUITREEITEM hNode)
 {
 	BOOL bFind = FALSE;
-	HTREEITEM hParentNode = NULL;
+	HDUITREEITEM hParentNode = NULL;
 	for(size_t i = m_vecRowInfo.size()-1; i >= 0; i--)
 	{
 		TreeNodeInfo &rowInfoTemp = m_vecRowInfo.at(i);
@@ -923,7 +1100,7 @@ HTREEITEM CDuiTreeCtrl::GetPrevSiblingNode(HTREEITEM hNode)
 }
 
 // 获取某个节点的子节点个数
-int CDuiTreeCtrl::GetChildNodeCount(HTREEITEM hNode)
+int CDuiTreeCtrl::GetChildNodeCount(HDUITREEITEM hNode)
 {
 	int nCount = 0;
 	for(size_t i = 0; i < m_vecRowInfo.size(); i++)
@@ -939,7 +1116,7 @@ int CDuiTreeCtrl::GetChildNodeCount(HTREEITEM hNode)
 }
 
 // 获取一个节点的层级
-int CDuiTreeCtrl::GetNodeLevel(HTREEITEM hNode)
+int CDuiTreeCtrl::GetNodeLevel(HDUITREEITEM hNode)
 {
 	int nLevel = 0;
 	TreeNodeInfo* pNodeInfo = GetNodeInfo(hNode);
@@ -957,7 +1134,7 @@ int CDuiTreeCtrl::GetNodeLevel(HTREEITEM hNode)
 }
 
 // 根据节点ID获取节点的句柄
-HTREEITEM CDuiTreeCtrl::GetNodeById(CString strId)
+HDUITREEITEM CDuiTreeCtrl::GetNodeById(CString strId)
 {
 	for(size_t i = 0; i < m_vecRowInfo.size(); i++)
 	{
@@ -972,7 +1149,7 @@ HTREEITEM CDuiTreeCtrl::GetNodeById(CString strId)
 }
 
 // 获取某一个行信息
-TreeNodeInfo* CDuiTreeCtrl::GetNodeInfo(HTREEITEM hNode)
+TreeNodeInfo* CDuiTreeCtrl::GetNodeInfo(HDUITREEITEM hNode)
 {
 	int nRow = GetNodeRow(hNode);
 	if(nRow == -1)
@@ -985,7 +1162,7 @@ TreeNodeInfo* CDuiTreeCtrl::GetNodeInfo(HTREEITEM hNode)
 }
 
 // 获取某一个单元格信息
-TreeItemInfo* CDuiTreeCtrl::GetItemInfo(HTREEITEM hNode, int nItem)
+TreeItemInfo* CDuiTreeCtrl::GetItemInfo(HDUITREEITEM hNode, int nItem)
 {
 	int nRow = GetNodeRow(hNode);
 	if(nRow == -1)
@@ -1010,7 +1187,7 @@ TreeItemInfo* CDuiTreeCtrl::GetItemInfo(HTREEITEM hNode, int nItem)
 }
 
 // 设置某一个单元格信息
-void CDuiTreeCtrl::SetItemInfo(HTREEITEM hNode, int nItem, TreeItemInfo* pItemInfo)
+void CDuiTreeCtrl::SetItemInfo(HDUITREEITEM hNode, int nItem, TreeItemInfo* pItemInfo)
 {
 	int nRow = GetNodeRow(hNode);
 	if(nRow == -1)
@@ -1065,7 +1242,7 @@ void CDuiTreeCtrl::SetItemInfo(HTREEITEM hNode, int nItem, TreeItemInfo* pItemIn
 }
 
 // 设置某一个行的文字颜色
-void CDuiTreeCtrl::SetNodeColor(HTREEITEM hNode, Color clrText)
+void CDuiTreeCtrl::SetNodeColor(HDUITREEITEM hNode, Color clrText)
 {
 	int nRow = GetNodeRow(hNode);
 	if(nRow == -1)
@@ -1079,7 +1256,7 @@ void CDuiTreeCtrl::SetNodeColor(HTREEITEM hNode, Color clrText)
 }
 
 // 设置某一个行的背景颜色
-void CDuiTreeCtrl::SetNodeBackColor(HTREEITEM hNode, Color clrBack)
+void CDuiTreeCtrl::SetNodeBackColor(HDUITREEITEM hNode, Color clrBack)
 {
 	int nRow = GetNodeRow(hNode);
 	if(nRow == -1)
@@ -1093,7 +1270,7 @@ void CDuiTreeCtrl::SetNodeBackColor(HTREEITEM hNode, Color clrBack)
 }
 
 // 切换节点的缩放状态
-void CDuiTreeCtrl::ToggleNode(HTREEITEM hNode)
+void CDuiTreeCtrl::ToggleNode(HDUITREEITEM hNode)
 {
 	if(HaveChildNode(hNode))
 	{
@@ -1107,11 +1284,11 @@ void CDuiTreeCtrl::ToggleNode(HTREEITEM hNode)
 }
 
 // 切换节点的缩放状态
-void CDuiTreeCtrl::ExpandNode(HTREEITEM hNode, BOOL bExpand)
+void CDuiTreeCtrl::ExpandNode(HDUITREEITEM hNode, BOOL bExpand)
 {
 	// 展开父节点
-	HTREEITEM hParentNode = NULL;
-	HTREEITEM hTempNode = hNode;
+	HDUITREEITEM hParentNode = NULL;
+	HDUITREEITEM hTempNode = hNode;
 	while((hParentNode = GetParentNode(hTempNode)) != NULL)
 	{
 		TreeNodeInfo* pParentNodeInfo = GetNodeInfo(hParentNode);
@@ -1136,7 +1313,7 @@ void CDuiTreeCtrl::ExpandNode(HTREEITEM hNode, BOOL bExpand)
 }
 
 // 设置某一个节点的检查框状态
-void CDuiTreeCtrl::SetNodeCheck(HTREEITEM hNode, int nCheck)
+void CDuiTreeCtrl::SetNodeCheck(HDUITREEITEM hNode, int nCheck)
 {
 	int nRow = GetNodeRow(hNode);
 	if(nRow == -1)
@@ -1149,7 +1326,7 @@ void CDuiTreeCtrl::SetNodeCheck(HTREEITEM hNode, int nCheck)
 }
 
 // 获取某一个节点的检查框状态
-int CDuiTreeCtrl::GetNodeCheck(HTREEITEM hNode)
+int CDuiTreeCtrl::GetNodeCheck(HDUITREEITEM hNode)
 {
 	int nRow = GetNodeRow(hNode);
 	if(nRow == -1)
@@ -1159,6 +1336,30 @@ int CDuiTreeCtrl::GetNodeCheck(HTREEITEM hNode)
 
 	TreeNodeInfo &rowInfo = m_vecRowInfo.at(nRow);
 	return rowInfo.nCheck;
+}
+
+void CDuiTreeCtrl::SetNodeData(HDUITREEITEM hNode, DWORD dwData)
+{
+	int nRow = GetNodeRow(hNode);
+	if(nRow == -1)
+	{
+		return;
+	}
+
+	TreeNodeInfo &rowInfo = m_vecRowInfo.at(nRow);
+	rowInfo.dwData = dwData;
+}
+
+DWORD CDuiTreeCtrl::GetNodeData(HDUITREEITEM hNode)
+{
+	int nRow = GetNodeRow(hNode);
+	if(nRow == -1)
+	{
+		return NULL;
+	}
+
+	TreeNodeInfo &rowInfo = m_vecRowInfo.at(nRow);
+	return rowInfo.dwData;
 }
 
 // 清空树节点
@@ -1186,7 +1387,7 @@ void CDuiTreeCtrl::ClearNodes()
 }
 
 // 隐藏子节点
-void CDuiTreeCtrl::HideChildNodes(HTREEITEM hItem)
+void CDuiTreeCtrl::HideChildNodes(HDUITREEITEM hItem)
 {
 	for(size_t i = 0; i < m_vecRowInfo.size(); i++)
 	{
@@ -1259,14 +1460,14 @@ void CDuiTreeCtrl::RefreshNodeRows()
 		if((rowInfoTemp.nCheck != -1) && (m_pImageCheckBox != NULL))
 		{
 			int nCheckImgY = 3;
-			if((m_sizeCheckBox.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+			if((m_sizeCheckBoxDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 			{
-				nCheckImgY = (m_nRowHeight - m_sizeCheckBox.cy) / 2 + 1;
+				nCheckImgY = (m_nRowHeight - m_sizeCheckBoxDpi.cy) / 2 + 1;
 			}
 			rowInfoTemp.rcCheck.left = nXPos;
-			rowInfoTemp.rcCheck.right = rowInfoTemp.rcCheck.left + m_sizeCheckBox.cx;
+			rowInfoTemp.rcCheck.right = rowInfoTemp.rcCheck.left + m_sizeCheckBoxDpi.cx;
 			rowInfoTemp.rcCheck.top = rowInfoTemp.rcRow.top + nCheckImgY;
-			rowInfoTemp.rcCheck.bottom = rowInfoTemp.rcCheck.top + m_sizeCheckBox.cy;
+			rowInfoTemp.rcCheck.bottom = rowInfoTemp.rcCheck.top + m_sizeCheckBoxDpi.cy;
 		}
 
 		// 计算每个单元格位置
@@ -1296,7 +1497,7 @@ void CDuiTreeCtrl::RefreshNodeRows()
 }
 
 // 将指定的节点滚动到可见范围
-BOOL CDuiTreeCtrl::EnsureVisible(HTREEITEM hNode, BOOL bPartialOK)
+BOOL CDuiTreeCtrl::EnsureVisible(HDUITREEITEM hNode, BOOL bPartialOK)
 {
 	// 如果节点未展开,则首先展开节点
 	ExpandNode(hNode, TRUE);
@@ -1353,6 +1554,8 @@ HRESULT CDuiTreeCtrl::OnAttributeFontTitle(const CString& strValue, BOOL bLoadin
 
 void CDuiTreeCtrl::SetControlRect(CRect rc)
 {
+	int nTotalColumnWidth = GetTotalColumnWidth();
+
 	m_rc = rc;
 	CRect rcTemp;
 	for (size_t i = 0; i < m_vecControl.size(); i++)
@@ -1366,6 +1569,12 @@ void CDuiTreeCtrl::SetControlRect(CRect rc)
 				rcTemp = m_rc;
 				rcTemp.left = rcTemp.right - m_nScrollWidth;
 			}else
+			if((SCROLL_H == uControlID) && (nTotalColumnWidth > m_rc.Width()))
+			{
+				rcTemp = m_rc;
+				rcTemp.top = rcTemp.bottom - m_nScrollWidth;
+				rcTemp.right = rcTemp.right - m_nScrollWidth;
+			}else
 			{
 				continue;
 			}
@@ -1373,6 +1582,8 @@ void CDuiTreeCtrl::SetControlRect(CRect rc)
 		}
 	}
 
+	// 计算横向滚动条
+	CalcColumnsPos();
 	// 重新计算所有行的位置
 	RefreshNodeRows();
 }
@@ -1401,7 +1612,7 @@ BOOL CDuiTreeCtrl::PtInRowCheck(CPoint point, TreeNodeInfo& rowInfo)
 
 	CRect rc = rowInfo.rcCheck;
 	// rcCheck坐标是画图时候计算出的按照控件虚拟显示区域为参照的坐标,需要转换为鼠标坐标
-	rc.OffsetRect(m_rc.left, m_rc.top-m_nVirtualTop);
+	rc.OffsetRect(m_rc.left - m_nVirtualLeft, m_rc.top-m_nVirtualTop);
 	return rc.PtInRect(point);
 }
 
@@ -1420,7 +1631,7 @@ BOOL CDuiTreeCtrl::PtInRowCollapse(CPoint point, TreeNodeInfo& rowInfo)
 		CRect rc = rowInfo.rcRow;
 		rc.left = nNodeLevel * m_sizeToggle.cx;
 		rc.right = rc.left + m_sizeToggle.cx;
-		rc.OffsetRect(m_rc.left, m_rc.top-m_nVirtualTop);
+		rc.OffsetRect(m_rc.left - m_nVirtualLeft, m_rc.top-m_nVirtualTop);
 		if(rc.PtInRect(point))
 		{
 			return TRUE;
@@ -1438,7 +1649,7 @@ BOOL CDuiTreeCtrl::PtInRowCollapse(CPoint point, TreeNodeInfo& rowInfo)
 
 		CRect rc = itemInfo.rcItem;
 		// rcItem坐标是画图时候计算出的按照控件虚拟显示区域为参照的坐标,需要转换为鼠标坐标
-		rc.OffsetRect(m_rc.left + m_nLeftPos, m_rc.top-m_nVirtualTop);
+		rc.OffsetRect(m_rc.left + m_nLeftPos - m_nVirtualLeft, m_rc.top-m_nVirtualTop);
 		if(rc.PtInRect(point))
 		{
 			return TRUE;
@@ -1461,7 +1672,7 @@ int CDuiTreeCtrl::PtInRowItem(CPoint point, TreeNodeInfo& rowInfo)
 		TreeItemInfo &itemInfo = rowInfo.vecItemInfo.at(i);
 		CRect rc = itemInfo.rcItem;
 		// rcItem坐标是画图时候计算出的按照控件虚拟显示区域为参照的坐标,需要转换为鼠标坐标
-		rc.OffsetRect(m_rc.left + m_nLeftPos, m_rc.top-m_nVirtualTop);
+		rc.OffsetRect(m_rc.left + m_nLeftPos - m_nVirtualLeft, m_rc.top-m_nVirtualTop);
 		if(rc.PtInRect(point))
 		{
 			return i;
@@ -1472,7 +1683,7 @@ int CDuiTreeCtrl::PtInRowItem(CPoint point, TreeNodeInfo& rowInfo)
 }
 
 // 设置单元格的Tooltip
-void CDuiTreeCtrl::SetGridTooltip(HTREEITEM hNode, int nItem, CString strTooltip)
+void CDuiTreeCtrl::SetGridTooltip(HDUITREEITEM hNode, int nItem, CString strTooltip)
 {
 	int nRow = GetNodeRow(hNode);
 	if(nRow == -1)
@@ -1486,7 +1697,7 @@ void CDuiTreeCtrl::SetGridTooltip(HTREEITEM hNode, int nItem, CString strTooltip
 		if(pGridInfo && (pGridInfo->bNeedTitleTip || pGridInfo->bNeedContentTip))
 		{
 			CRect rc = pGridInfo->rcItem;
-			rc.OffsetRect(m_rc.left, m_rc.top-m_nVirtualTop);
+			rc.OffsetRect(m_rc.left - m_nVirtualLeft, m_rc.top-m_nVirtualTop);
 			SetTooltip(this, strTooltip, rc, TRUE);
 		}else
 		{
@@ -1766,6 +1977,54 @@ BOOL CDuiTreeCtrl::OnControlLButtonDblClk(UINT nFlags, CPoint point)
 	return false;
 }
 
+// 鼠标右键单击事件处理
+BOOL CDuiTreeCtrl::OnControlRButtonDown(UINT nFlags, CPoint point)
+{
+	if(m_vecRowInfo.size() == 0)
+	{
+		return false;
+	}
+
+	// 设置窗口焦点,否则可能无法进行滚动事件的处理
+	SetWindowFocus();
+
+	if((m_nHoverRow >= 0) && (m_nHoverRow < (int)m_vecRowInfo.size()))
+	{
+		TreeNodeInfo &rowInfo = m_vecRowInfo.at(m_nHoverRow);
+		if(PtInRow(point, rowInfo) && !PtInRowCheck(point, rowInfo) && !PtInRowCollapse(point, rowInfo))	// 检查框和收缩事件只在鼠标放开时候触发
+		{
+			rowInfo.nHoverItem = PtInRowItem(point, rowInfo);
+			if(m_nDownRow != m_nHoverRow)
+			{
+				if(m_bEnableDownRow)
+				{
+					m_nDownRow = m_nHoverRow;
+					m_nHoverRow = -1;
+				}
+
+				SendMessage(MSG_MOUSE_RDOWN, rowInfo.hNode, rowInfo.nHoverItem);
+
+				UpdateControl(TRUE);
+
+				return true;
+			}
+		}	
+	}else
+		if((m_nDownRow >= 0) && (m_nDownRow < (int)m_vecRowInfo.size()))
+		{
+			// 如果点击的还是之前点击的行，也同样会发送鼠标点击事件
+			TreeNodeInfo &rowInfo = m_vecRowInfo.at(m_nDownRow);
+			if(PtInRow(point, rowInfo)&& !PtInRowCheck(point, rowInfo))	// 检查框事件只在鼠标放开时候触发
+			{
+				rowInfo.nHoverItem = PtInRowItem(point, rowInfo);
+				SendMessage(MSG_MOUSE_RDOWN, rowInfo.hNode, rowInfo.nHoverItem);
+				return true;
+			}
+		}
+
+	return false;
+}
+
 // 滚动事件处理
 BOOL CDuiTreeCtrl::OnControlScroll(BOOL bVertical, UINT nFlags, CPoint point)
 {
@@ -1784,10 +2043,40 @@ BOOL CDuiTreeCtrl::OnControlScroll(BOOL bVertical, UINT nFlags, CPoint point)
 	return true;
 }
 
+// 键盘事件处理
+BOOL CDuiTreeCtrl::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
+{
+	// 如果当前处于焦点状态,用上下键可以移动当前选择行
+	if(IsFocusControl() && m_bEnableDownRow && (nChar == VK_UP) && (nFlags == 0))
+	{
+		if(m_nDownRow > 0)
+		{
+			m_nDownRow--;
+			TreeNodeInfo &rowInfo = m_vecRowInfo.at(m_nDownRow);
+			EnsureVisible(rowInfo.hNode, TRUE);
+			UpdateControl(TRUE);
+		}
+		return true;
+	}else
+	if(IsFocusControl() && m_bEnableDownRow && (nChar == VK_DOWN) && (nFlags == 0))
+	{
+		if(m_nDownRow < (GetNodeCount() - 1))
+		{
+			m_nDownRow++;
+			TreeNodeInfo &rowInfo = m_vecRowInfo.at(m_nDownRow);
+			EnsureVisible(rowInfo.hNode, TRUE);
+			UpdateControl(TRUE);
+		}
+		return true;
+	}
+
+	return __super::OnControlKeyDown(nChar, nRepCnt, nFlags);
+}
+
 // 消息响应
 LRESULT CDuiTreeCtrl::OnMessage(UINT uID, UINT Msg, WPARAM wParam, LPARAM lParam)
 {
-	if((uID == SCROLL_V) && (Msg == MSG_SCROLL_CHANGE))
+	if(((uID == SCROLL_V) || (uID == SCROLL_H)) && (Msg == MSG_SCROLL_CHANGE))
 	{
 		// 如果是滚动条的位置变更事件,则刷新显示
 		UpdateControl(true);
@@ -1818,13 +2107,24 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 	// 3.重画时候,根据top坐标位置计算出显示的第一行的序号,根据显示高度计算出显示的最后一行的序号
 	// 4.根据计算出的显示的行,画相应的内容到内存dc中
 	// 5.计算出显示的top坐标进行内存dc的拷贝
-	int nWidth = m_rc.Width() - m_nScrollWidth;	// 减去滚动条的宽度
+	int nTotalColumnWidth = GetTotalColumnWidth();	// 总的列宽度
+	int nViewWidth = m_rc.Width() - m_nScrollWidth;	// 减去滚动条的显示区域宽度
+	CDuiScrollHorizontal* pScrollH = (CDuiScrollHorizontal*)m_pControScrollH;
+	int nCurPosH = pScrollH->GetScrollCurrentPos();	// 当前left位置
+	int nMaxRangeH = pScrollH->GetScrollMaxRange();
+	int nContentWidth = (nTotalColumnWidth > nViewWidth) ? nTotalColumnWidth : nViewWidth;	// 内容部分的宽度(如果总的列宽小于显示区域宽度,则使用显示区域宽度)
+	m_nVirtualLeft = (nMaxRangeH > 0) ? (int)((double)nCurPosH*(nContentWidth-nViewWidth)/nMaxRangeH) : 0;	// 当前滚动条位置对应的虚拟的left位置
+
 	int nHeightAll = m_nVisibleRowCount*m_nRowHeight; // 总的虚拟高度 //m_rc.Height();
 	CDuiScrollVertical* pScrollV = (CDuiScrollVertical*)m_pControScrollV;
-	int nCurPos = pScrollV->GetScrollCurrentPos();	// 当前top位置
-	int nMaxRange = pScrollV->GetScrollMaxRange();
+	int nCurPosV = pScrollV->GetScrollCurrentPos();	// 当前top位置
+	int nMaxRangeV = pScrollV->GetScrollMaxRange();
+	if(nTotalColumnWidth > m_rc.Width())	// 如果需要显示水平滚动条,则春之滚动条的最大范围要减去滚动条宽度
+	{
+		nMaxRangeV -= m_nScrollWidth;
+	}
 
-	m_nVirtualTop = (nMaxRange > 0) ? (int)((double)nCurPos*(nHeightAll-m_rc.Height())/nMaxRange) : 0;	// 当前滚动条位置对应的虚拟的top位置
+	m_nVirtualTop = (nMaxRangeV > 0) ? (int)((double)nCurPosV*(nHeightAll-m_rc.Height())/nMaxRangeV) : 0;	// 当前滚动条位置对应的虚拟的top位置
 	if(m_nVirtualTop < 0)
 	{
 		m_nVirtualTop = 0;
@@ -1841,13 +2141,17 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 
 	if(!m_bUpdate)
 	{
-		UpdateMemDC(dc, nWidth, nHeightView);
+		UpdateMemDC(dc, nTotalColumnWidth, nHeightView);
 
 		Graphics graphics(m_memDC);
 		
-		m_memDC.BitBlt(0, 0, nWidth, nHeightView, &dc, m_rc.left, m_rc.top, WHITENESS);	// 画白色背景
-		DrawVerticalTransition(m_memDC, dc, CRect(0, nYViewPos, nWidth, m_rc.Height()+nYViewPos),	// 背景透明度
-				m_rc, m_nBkTransparent, m_nBkTransparent);
+		// 画白色背景
+		m_memDC.BitBlt(m_nVirtualLeft, 0, nViewWidth, nHeightView, &dc, m_rc.left, m_rc.top, WHITENESS);
+		// 画半透明背景
+		// 内容部分
+		CRect rcContent = m_rc;
+		DrawVerticalTransition(m_memDC, dc, CRect(m_nVirtualLeft, nYViewPos, nViewWidth+m_nVirtualLeft, m_rc.Height()+nYViewPos),
+				rcContent, m_nBkTransparent, m_nBkTransparent);
 		
 		BSTR bsFontTitle = m_strFontTitle.AllocSysString();
 		FontFamily fontFamilyTitle(bsFontTitle);
@@ -1914,13 +2218,14 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 				{
 					int nNodeLevel = GetNodeLevel(rowInfo.hNode);
 					nXPos += (nNodeLevel * m_sizeToggle.cx);
-					if(HaveChildNode(rowInfo.hNode))
+					// 节点存在子节点，或者是顶层节点的情况下，画缩放图片
+					if(HaveChildNode(rowInfo.hNode) || (GetParentNode(rowInfo.hNode) == NULL))
 					{
-						int nToggleImgY = (m_nRowHeight - m_sizeToggle.cy) / 2;
+						int nToggleImgY = (m_nRowHeight - m_sizeToggleDpi.cy) / 2;
 						int nToggleIndex = (m_nHoverRow == i) ? 1 : 0;
-						graphics.DrawImage(m_pImageToggle, Rect(nXPos, nVI*m_nRowHeight + nToggleImgY, m_sizeToggle.cx, m_sizeToggle.cy),
+						graphics.DrawImage(m_pImageToggle, Rect(nXPos, nVI*m_nRowHeight + nToggleImgY, m_sizeToggleDpi.cx, m_sizeToggleDpi.cy),
 							rowInfo.bCollapse ? nToggleIndex*m_sizeToggle.cx : (3+nToggleIndex)*m_sizeToggle.cx, 0, m_sizeToggle.cx, m_sizeToggle.cy, UnitPixel);
-						nXPos += m_sizeToggle.cx;
+						nXPos += m_sizeToggleDpi.cx;
 					}
 				}
 
@@ -1928,51 +2233,56 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 				if((m_nHoverRow == i) && (m_clrRowHover.GetValue() != Color(0, 0, 0, 0).GetValue()))
 				{
 					SolidBrush brush(m_clrRowHover);
-					graphics.FillRectangle(&brush, nXPos, nVI*m_nRowHeight, nWidth-nXPos, m_nRowHeight);
+					graphics.FillRectangle(&brush, nXPos, nVI*m_nRowHeight, nContentWidth-nXPos, m_nRowHeight);
+				}else
+				if((m_nDownRow == i) && (m_clrRowCurrent.GetValue() != Color(0, 0, 0, 0).GetValue()))	// 如果是当前行,显示当前行的背景色
+				{
+					SolidBrush brush(m_clrRowCurrent);
+					graphics.FillRectangle(&brush, nXPos, nVI*m_nRowHeight, nContentWidth-nXPos, m_nRowHeight);
 				}else
 				if(rowInfo.bRowBackColor)	// 如果设置了行的背景颜色,则填充颜色
 				{
 					SolidBrush brush(rowInfo.clrBack);
-					graphics.FillRectangle(&brush, nXPos, nVI*m_nRowHeight, nWidth-nXPos, m_nRowHeight);
+					graphics.FillRectangle(&brush, nXPos, nVI*m_nRowHeight, nContentWidth-nXPos, m_nRowHeight);
 				}
 
 				// 画检查框
 				int nCheckImgY = 3;
-				if((m_sizeCheckBox.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+				if((m_sizeCheckBoxDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 				{
-					nCheckImgY = (m_nRowHeight - m_sizeCheckBox.cy) / 2 + 1;
+					nCheckImgY = (m_nRowHeight - m_sizeCheckBoxDpi.cy) / 2 + 1;
 				}
 				if((rowInfo.nCheck != -1) && (m_pImageCheckBox != NULL))
 				{
 					int nCheckImageIndex = ((m_nHoverRow == i) ? ((rowInfo.nCheck==1) ? 4 : 1) : ((rowInfo.nCheck==1) ? 2 : 0));
-					graphics.DrawImage(m_pImageCheckBox, Rect(nXPos, nVI*m_nRowHeight + nCheckImgY, m_sizeCheckBox.cx, m_sizeCheckBox.cy),
+					graphics.DrawImage(m_pImageCheckBox, Rect(nXPos, nVI*m_nRowHeight + nCheckImgY, m_sizeCheckBoxDpi.cx, m_sizeCheckBoxDpi.cy),
 						nCheckImageIndex * m_sizeCheckBox.cx, 0, m_sizeCheckBox.cx, m_sizeCheckBox.cy, UnitPixel);
-					nXPos += (m_sizeCheckBox.cx + 3);
+					nXPos += (m_sizeCheckBoxDpi.cx + DUI_DPI_X(3));
 				}
 
 				// 画行左边图片
 				int nImgY = 3;
 				if(rowInfo.pImage != NULL)
 				{
-					if((rowInfo.sizeImage.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+					if((rowInfo.sizeImageDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 					{
-						nImgY = (m_nRowHeight - rowInfo.sizeImage.cy) / 2 + 1;
+						nImgY = (m_nRowHeight - rowInfo.sizeImageDpi.cy) / 2 + 1;
 					}
 					// 使用行数据指定的图片
-					graphics.DrawImage(rowInfo.pImage, Rect(nXPos, nVI*m_nRowHeight + nImgY, rowInfo.sizeImage.cx, rowInfo.sizeImage.cy),
+					graphics.DrawImage(rowInfo.pImage, Rect(nXPos, nVI*m_nRowHeight + nImgY, rowInfo.sizeImageDpi.cx, rowInfo.sizeImageDpi.cy),
 						0, 0, rowInfo.sizeImage.cx, rowInfo.sizeImage.cy, UnitPixel);
-					nXPos += (rowInfo.sizeImage.cx + 3);
+					nXPos += (rowInfo.sizeImageDpi.cx + DUI_DPI_X(3));
 				}else
 				if((rowInfo.nImageIndex != -1) && (m_pImage != NULL))
 				{
-					if((m_sizeImage.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+					if((rowInfo.sizeImageDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 					{
-						nImgY = (m_nRowHeight - m_sizeImage.cy) / 2 + 1;
+						nImgY = (m_nRowHeight - rowInfo.sizeImageDpi.cy) / 2 + 1;
 					}
 					// 使用索引图片
-					graphics.DrawImage(m_pImage, Rect(nXPos, nVI*m_nRowHeight + nImgY, m_sizeImage.cx, m_sizeImage.cy),
+					graphics.DrawImage(m_pImage, Rect(nXPos, nVI*m_nRowHeight + nImgY, rowInfo.sizeImageDpi.cx, rowInfo.sizeImageDpi.cy),
 						rowInfo.nImageIndex*m_sizeImage.cx, 0, m_sizeImage.cx, m_sizeImage.cy, UnitPixel);
-					nXPos += (m_sizeImage.cx + 3);
+					nXPos += (rowInfo.sizeImageDpi.cx + DUI_DPI_X(3));
 				}
 
 				// 画行右边图片
@@ -1980,25 +2290,25 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 				nImgY = 3;
 				if(rowInfo.pRightImage != NULL)
 				{
-					if((rowInfo.sizeRightImage.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+					if((rowInfo.sizeRightImageDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 					{
-						nImgY = (m_nRowHeight - rowInfo.sizeRightImage.cy) / 2 + 1;
+						nImgY = (m_nRowHeight - rowInfo.sizeRightImageDpi.cy) / 2 + 1;
 					}
 					// 使用行数据指定的图片
-					graphics.DrawImage(rowInfo.pRightImage, Rect(nWidth-rowInfo.sizeRightImage.cx-1, nVI*m_nRowHeight + nImgY, rowInfo.sizeRightImage.cx, rowInfo.sizeRightImage.cy),
+					graphics.DrawImage(rowInfo.pRightImage, Rect(nContentWidth-rowInfo.sizeRightImageDpi.cx-1, nVI*m_nRowHeight + nImgY, rowInfo.sizeRightImageDpi.cx, rowInfo.sizeRightImageDpi.cy),
 						0, 0, rowInfo.sizeRightImage.cx, rowInfo.sizeRightImage.cy, UnitPixel);
-					nRightImageWidth = rowInfo.sizeRightImage.cx + 1;
+					nRightImageWidth = rowInfo.sizeRightImageDpi.cx + 1;
 				}else
 				if((rowInfo.nRightImageIndex != -1) && (m_pImage != NULL))
 				{
-					if((m_sizeImage.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+					if((rowInfo.sizeRightImageDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 					{
-						nImgY = (m_nRowHeight - m_sizeImage.cy) / 2 + 1;
+						nImgY = (m_nRowHeight - rowInfo.sizeRightImageDpi.cy) / 2 + 1;
 					}
 					// 使用索引图片
-					graphics.DrawImage(m_pImage, Rect(nWidth-m_sizeImage.cx-1, nVI*m_nRowHeight + nImgY, m_sizeImage.cx, m_sizeImage.cy),
+					graphics.DrawImage(m_pImage, Rect(nContentWidth- rowInfo.sizeRightImageDpi.cx-1, nVI*m_nRowHeight + nImgY, rowInfo.sizeRightImageDpi.cx, rowInfo.sizeRightImageDpi.cy),
 						rowInfo.nRightImageIndex*m_sizeImage.cx, 0, m_sizeImage.cx, m_sizeImage.cy, UnitPixel);
-					nRightImageWidth = m_sizeImage.cx + 1;
+					nRightImageWidth = rowInfo.sizeRightImageDpi.cx + 1;
 				}
 
 				// 画单元格内容
@@ -2011,7 +2321,7 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 						(Gdiplus::REAL)(nVI*m_nRowHeight + 1),
 						(Gdiplus::REAL)((j == 0) ? (itemInfo.rcItem.Width() - nPosItemX): itemInfo.rcItem.Width()),
 						(Gdiplus::REAL)(bSingleLine ? (m_nRowHeight - 2) : (m_nRowHeight / 2 - 2)));
-					if((int)(rect.GetRight()) > nWidth)
+					if((int)(rect.GetRight()) > nContentWidth)
 					{
 						// 最后一列需要减去滚动条宽度
 						rect.Width -= m_nScrollWidth;
@@ -2022,25 +2332,25 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 					int nImgY = 3;
 					if((itemInfo.pImage != NULL) && (itemInfo.nImageCount <= 1))
 					{
-						if((itemInfo.sizeImage.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+						if((itemInfo.sizeImageDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 						{
-							nImgY = (m_nRowHeight - itemInfo.sizeImage.cy) / 2 + 1;
+							nImgY = (m_nRowHeight - itemInfo.sizeImageDpi.cy) / 2 + 1;
 						}
 						// 使用单元格指定的图片
-						graphics.DrawImage(itemInfo.pImage, Rect(nPosItemX+nItemImageX, nVI*m_nRowHeight + nImgY, itemInfo.sizeImage.cx, itemInfo.sizeImage.cy),
+						graphics.DrawImage(itemInfo.pImage, Rect(nPosItemX+nItemImageX, nVI*m_nRowHeight + nImgY, itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy),
 							0, 0, itemInfo.sizeImage.cx, itemInfo.sizeImage.cy, UnitPixel);
-						nItemImageX += (itemInfo.sizeImage.cx + 3);
+						nItemImageX += (itemInfo.sizeImageDpi.cx + DUI_DPI_X(3));
 					}else
 					if((itemInfo.nImageIndex != -1) && (m_pImage != NULL))
 					{
-						if((m_sizeImage.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
+						if((itemInfo.sizeImageDpi.cy*2 > m_nRowHeight) || (m_uVAlignment == VAlign_Middle))
 						{
-							nImgY = (m_nRowHeight - m_sizeImage.cy) / 2 + 1;
+							nImgY = (m_nRowHeight - itemInfo.sizeImageDpi.cy) / 2 + 1;
 						}
 						// 使用索引图片
-						graphics.DrawImage(m_pImage, Rect(nPosItemX+nItemImageX, nVI*m_nRowHeight + nImgY, m_sizeImage.cx, m_sizeImage.cy),
+						graphics.DrawImage(m_pImage, Rect(nPosItemX+nItemImageX, nVI*m_nRowHeight + nImgY, itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy),
 							itemInfo.nImageIndex*m_sizeImage.cx, 0, m_sizeImage.cx, m_sizeImage.cy, UnitPixel);
-						nItemImageX += (m_sizeImage.cx + 3);
+						nItemImageX += (itemInfo.sizeImageDpi.cx + DUI_DPI_X(3));
 					}
 					rect.Offset((Gdiplus::REAL)nItemImageX, 0);
 					rect.Width -= (Gdiplus::REAL)nItemImageX;
@@ -2051,12 +2361,12 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 						int nCollapseIndex = (m_nHoverRow == i) ? 1 : 0;
 						if(itemInfo.pImage != NULL)
 						{
-							graphics.DrawImage(itemInfo.pImage, Rect(nPosItemX+nItemImageX, nVI*m_nRowHeight + (m_nRowHeight-itemInfo.sizeImage.cy)/2, itemInfo.sizeImage.cx, itemInfo.sizeImage.cy),
+							graphics.DrawImage(itemInfo.pImage, Rect(nPosItemX+nItemImageX, nVI*m_nRowHeight + (m_nRowHeight-itemInfo.sizeImage.cy)/2, itemInfo.sizeImageDpi.cx, itemInfo.sizeImageDpi.cy),
 								rowInfo.bCollapse ? nCollapseIndex*itemInfo.sizeImage.cx : ((itemInfo.nImageCount / 2)+nCollapseIndex)*itemInfo.sizeImage.cx, 0, itemInfo.sizeImage.cx, itemInfo.sizeImage.cy, UnitPixel);
 						}else
 						if(m_pImageCollapse != NULL)
 						{
-							graphics.DrawImage(m_pImageCollapse, Rect(nPosItemX+nItemImageX, nVI*m_nRowHeight + (m_nRowHeight-m_sizeCollapse.cy)/2, m_sizeCollapse.cx, m_sizeCollapse.cy),
+							graphics.DrawImage(m_pImageCollapse, Rect(nPosItemX+nItemImageX, nVI*m_nRowHeight + (m_nRowHeight-m_sizeCollapse.cy)/2, m_sizeCollapseDpi.cx, m_sizeCollapseDpi.cy),
 								rowInfo.bCollapse ? nCollapseIndex*m_sizeCollapse.cx : (4+nCollapseIndex)*m_sizeCollapse.cx, 0, m_sizeCollapse.cx, m_sizeCollapse.cy, UnitPixel);
 						}
 					}
@@ -2118,12 +2428,12 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 						{
 							CRect rcParent = CRect(nPosItemX, nVI*m_nRowHeight + 1,
 								(int)(rect.X+rect.Width), (nVI+1)*m_nRowHeight - 1);
-							if((int)(rect.GetRight()) > nWidth)
+							if((int)(rect.GetRight()) > nContentWidth)
 							{
 								// 最后一列需要减去滚动条宽度
 								rcParent.right -= m_nScrollWidth;
 							}
-							rcParent.OffsetRect(m_rc.left, m_rc.top - nYViewPos);
+							rcParent.OffsetRect(m_rc.left - m_nVirtualLeft, m_rc.top - nYViewPos);
 							pControl->SetPositionWithParent(rcParent);
 							CRect rcControl = pControl->GetRect();
 							// 只有当前在显示范围内的控件设置为可见
@@ -2151,7 +2461,7 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 				if(m_pImageSeperator != NULL)
 				{
 					// 使用拉伸模式属性画图
-					graphics.DrawImage(m_pImageSeperator, RectF(0, (Gdiplus::REAL)((nVI+1)*m_nRowHeight), (Gdiplus::REAL)(nWidth-2), (Gdiplus::REAL)m_sizeSeperator.cy),
+					graphics.DrawImage(m_pImageSeperator, RectF(0, (Gdiplus::REAL)((nVI+1)*m_nRowHeight), (Gdiplus::REAL)(nContentWidth-2), (Gdiplus::REAL)m_sizeSeperator.cy),
 							0, 0, (Gdiplus::REAL)m_sizeSeperator.cx, (Gdiplus::REAL)m_sizeSeperator.cy, UnitPixel);
 				}/*else
 				{
@@ -2203,5 +2513,11 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 		}
 	}
 
-	dc.BitBlt(m_rc.left,m_rc.top, nWidth, m_rc.Height(), &m_memDC, 0, nYViewPos, SRCCOPY);//SRCAND);
+	// 内容部分输出
+	int nContentHeight = m_rc.Height();
+	if(nTotalColumnWidth > m_rc.Width())
+	{
+		nContentHeight -= m_nScrollWidth;
+	}
+	dc.BitBlt(m_rc.left,m_rc.top, nViewWidth, nContentHeight, &m_memDC, m_nVirtualLeft, nYViewPos, SRCCOPY);//SRCAND);
 }

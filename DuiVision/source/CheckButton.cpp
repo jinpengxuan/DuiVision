@@ -1,7 +1,7 @@
 #include "StdAfx.h"
 #include "CheckButton.h"
 
-CCheckButton::CCheckButton(HWND hWnd, CDuiObject* pDuiObject)
+CDuiCheckButton::CDuiCheckButton(HWND hWnd, CDuiObject* pDuiObject)
 						   : CControlBaseFont(hWnd, pDuiObject)
 {
 	m_bTabStop = TRUE;	// 可以响应tab键
@@ -16,7 +16,7 @@ CCheckButton::CCheckButton(HWND hWnd, CDuiObject* pDuiObject)
 	SetBitmapCount(6);
 }
 
-CCheckButton::CCheckButton(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc, CString strTitle/*= TEXT("")*/, BOOL bIsVisible/* = TRUE*/, 
+CDuiCheckButton::CDuiCheckButton(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, CRect rc, CString strTitle/*= TEXT("")*/, BOOL bIsVisible/* = TRUE*/, 
 						   BOOL bIsDisable/* = FALSE*/ ,BOOL bIsPressDown/* = FALSE*/)
 						   : CControlBaseFont(hWnd, pDuiObject, uControlID, rc, strTitle, bIsVisible, bIsDisable)
 {
@@ -32,16 +32,16 @@ CCheckButton::CCheckButton(HWND hWnd, CDuiObject* pDuiObject, UINT uControlID, C
 	SetBitmapCount(6);
 }
 
-CCheckButton::~CCheckButton(void)
+CDuiCheckButton::~CDuiCheckButton(void)
 {
 }
 
-BOOL CCheckButton::GetCheck()
+BOOL CDuiCheckButton::GetCheck()
 {
 	return m_bDown;
 }
 
-BOOL CCheckButton::SetCheck(BOOL bCheck)
+BOOL CDuiCheckButton::SetCheck(BOOL bCheck)
 {
 	if (m_bIsDisable)
 	{
@@ -66,7 +66,7 @@ BOOL CCheckButton::SetCheck(BOOL bCheck)
 }
 
 // 从XML设置check属性
-HRESULT CCheckButton::OnAttributeCheck(const CString& strValue, BOOL bLoading)
+HRESULT CDuiCheckButton::OnAttributeCheck(const CString& strValue, BOOL bLoading)
 {
 	if (strValue.IsEmpty()) return E_FAIL;
 
@@ -76,8 +76,18 @@ HRESULT CCheckButton::OnAttributeCheck(const CString& strValue, BOOL bLoading)
 	return bLoading?S_FALSE:S_OK;
 }
 
+// 设置是否显示焦点框
+void CDuiCheckButton::SetShowFocus(BOOL bShowFocus)
+{
+	if (bShowFocus != m_bShowFocus)
+	{
+		m_bShowFocus = bShowFocus;
+		UpdateControl(true);
+	}
+}
+
 // 设置控件的焦点
-BOOL CCheckButton::SetControlFocus(BOOL bFocus)
+BOOL CDuiCheckButton::SetControlFocus(BOOL bFocus)
 {
 	__super::SetControlFocus(bFocus);
 
@@ -92,7 +102,7 @@ BOOL CCheckButton::SetControlFocus(BOOL bFocus)
 	return TRUE;
 }
 
-BOOL CCheckButton::OnControlMouseMove(UINT nFlags, CPoint point)
+BOOL CDuiCheckButton::OnControlMouseMove(UINT nFlags, CPoint point)
 {
 	enumButtonState buttonState = m_enButtonState;
 	if (!m_bIsDisable && !m_bMouseDown)
@@ -129,7 +139,7 @@ BOOL CCheckButton::OnControlMouseMove(UINT nFlags, CPoint point)
 	return false;
 }
 
-BOOL CCheckButton::OnControlLButtonDown(UINT nFlags, CPoint point)
+BOOL CDuiCheckButton::OnControlLButtonDown(UINT nFlags, CPoint point)
 {
 	enumButtonState buttonState = m_enButtonState;
 	if (!m_bIsDisable)
@@ -158,7 +168,7 @@ BOOL CCheckButton::OnControlLButtonDown(UINT nFlags, CPoint point)
 	return false;
 }
 
-BOOL CCheckButton::OnControlLButtonUp(UINT nFlags, CPoint point)
+BOOL CDuiCheckButton::OnControlLButtonUp(UINT nFlags, CPoint point)
 {
 	enumButtonState buttonState = m_enButtonState;
 	if (!m_bIsDisable)
@@ -202,12 +212,13 @@ BOOL CCheckButton::OnControlLButtonUp(UINT nFlags, CPoint point)
 }
 
 // 键盘事件处理
-BOOL CCheckButton::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
+BOOL CDuiCheckButton::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
 	// 处理快捷键
 	if((m_nShortcutKey != 0) && (nChar == m_nShortcutKey) && (nFlags == m_nShortcutFlag))
 	{
 		SetCheck(!GetCheck());
+		SendMessage(MSG_BUTTON_CHECK, 0, GetCheck());
 		return true;
 	}
 
@@ -215,13 +226,14 @@ BOOL CCheckButton::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	if(m_bIsFocus && (nChar == VK_SPACE) && (nFlags == 0))
 	{
 		SetCheck(!GetCheck());
+		SendMessage(MSG_BUTTON_CHECK, 0, GetCheck());
 		return true;
 	}
 
 	return false;
 }
 
-void  CCheckButton::SetControlDisable(BOOL bIsDisable)
+void CDuiCheckButton::SetControlDisable(BOOL bIsDisable)
 {
 	if(m_bIsDisable != bIsDisable)
 	{
@@ -252,7 +264,7 @@ void  CCheckButton::SetControlDisable(BOOL bIsDisable)
 	}
 }
 
-void CCheckButton::DrawControl(CDC &dc, CRect rcUpdate)
+void CDuiCheckButton::DrawControl(CDC &dc, CRect rcUpdate)
 {
 	int nWidth = m_rc.Width();
 	int nHeight = m_rc.Height();
@@ -268,7 +280,7 @@ void CCheckButton::DrawControl(CDC &dc, CRect rcUpdate)
 		{
 			m_memDC.BitBlt(i * nWidth, 0, nWidth, nHeight, &dc, m_rc.left ,m_rc.top, SRCCOPY);
 
-			graphics.DrawImage(m_pImage, Rect(rcTemp.left, rcTemp.top + (nHeight - m_sizeImage.cy) / 2,   m_sizeImage.cx, m_sizeImage.cy),
+			graphics.DrawImage(m_pImage, Rect(rcTemp.left, rcTemp.top + (nHeight - m_sizeImageDpi.cy) / 2,   m_sizeImageDpi.cx, m_sizeImageDpi.cy),
 				i * m_sizeImage.cx, 0, m_sizeImage.cx, m_sizeImage.cy, UnitPixel);
 
 			rcTemp.OffsetRect(nWidth, 0);
@@ -290,14 +302,14 @@ void CCheckButton::DrawControl(CDC &dc, CRect rcUpdate)
 			strFormat.SetAlignment(StringAlignmentNear);
 			strFormat.SetFormatFlags( StringFormatFlagsNoWrap | StringFormatFlagsMeasureTrailingSpaces);
 			Size size = GetTextBounds(font, strFormat, m_strTitle);
-			CPoint point = GetOriginPoint(nWidth - m_sizeImage.cx - 3, nHeight, size.Width, size.Height,
+			CPoint point = GetOriginPoint(nWidth - m_sizeImageDpi.cx - 3, nHeight, size.Width, size.Height,
 							GetGDIAlignment(m_uAlignment), GetGDIVAlignment(m_uVAlignment));
 
 			for(int i = 0; i < 6; i++)
 			{
 				SolidBrush solidBrush(enBSDisable == i ? Color(128, 128, 128) : m_clrText);
 
-				RectF rect((Gdiplus::REAL)(m_sizeImage.cx + 3 + point.x + i * nWidth), (Gdiplus::REAL)point.y, (Gdiplus::REAL)(nWidth - m_sizeImage.cx - 3 - point.x), (Gdiplus::REAL)size.Height);
+				RectF rect((Gdiplus::REAL)(m_sizeImageDpi.cx + 3 + point.x + i * nWidth), (Gdiplus::REAL)point.y, (Gdiplus::REAL)(nWidth - m_sizeImageDpi.cx - 3 - point.x), (Gdiplus::REAL)size.Height);
 				BSTR bsTitle = m_strTitle.AllocSysString();
 				graphics.DrawString(bsTitle, (INT)wcslen(bsTitle), &font, rect, &strFormat, &solidBrush);
 				::SysFreeString(bsTitle);
@@ -307,7 +319,7 @@ void CCheckButton::DrawControl(CDC &dc, CRect rcUpdate)
 				{
 					Pen pen(Color(128, 128, 128), 1);
 					pen.SetDashStyle(DashStyleDot);
-					RectF rectFocus((Gdiplus::REAL)(point.x + i * nWidth), (Gdiplus::REAL)point.y, (Gdiplus::REAL)(m_sizeImage.cx + 6 + size.Width), (Gdiplus::REAL)size.Height);
+					RectF rectFocus((Gdiplus::REAL)(point.x + i * nWidth), (Gdiplus::REAL)point.y, (Gdiplus::REAL)(m_sizeImageDpi.cx + 6 + size.Width), (Gdiplus::REAL)size.Height);
 					graphics.DrawRectangle(&pen, rectFocus);
 				}
 			}

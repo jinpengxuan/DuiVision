@@ -1,6 +1,12 @@
 DuiVision
 =========
 
+![License](https://img.shields.io/badge/license-MIT-green)
+[![](https://img.shields.io/badge/Author-蓝蚂蚁工作室-blue.svg)](http://www.blueantstudio.net)
+![QQ群325880743](https://img.shields.io/badge/QQ群-325880743-brightgreen)
+[![GitHub stars](https://img.shields.io/github/stars/blueantst/DuiVision.svg?style=social&label=Stars)](https://github.com/blueantst/DuiVision)
+[![GitHub forks](https://img.shields.io/github/forks/blueantst/DuiVision.svg?style=social&label=Fork)](https://github.com/blueantst/DuiVision)
+
 DuiVision界面库是参考了仿PC管家程序、金山界面库、DuiEngine、DuiLib等多个基于DirectUI的界面库开发的。
 
 DirectUI技术一般是指将所有的界面控件都绘制在一个窗口上，这些控件的逻辑和绘图方式都必须自己进行编写和封装，而不是使用Windows控件，所以这些控件都是无句柄的。
@@ -14,7 +20,9 @@ DirectUI技术需要解决的主要问题如下：
 
 通常DirectUI的界面库都采用XML配置文件+图片+控制脚本（Lua、Javascript等）的开发方式，非常类似于Web程序的开发方式，当然这里面控制脚本也可以直接使用C++代码来实现。这种开发方式可以大大提高开发效率，将程序员从繁琐的界面工作中解脱出来，并且通过美工的设计，可以使界面更美观。
 
-DuiVision开源下载地址：https://github.com/blueantst/DuiVision
+DuiVision开源下载地址(github)：https://github.com/blueantst/DuiVision
+
+DuiVision开源下载地址(gitee)：https://gitee.com/blueantst/DuiVision
 
 蓝蚂蚁工作室主页：[http://www.blueantstudio.net](http://www.blueantstudio.net)
 
@@ -24,25 +32,29 @@ QQ群：325880743 (Script.NET&DuiVision社区)<a target="_blank" href="http://sh
 
 微信公众号：blueantstudio 或搜索 蓝蚂蚁工作室
 
-下载DuiVision Demo程序：[20160312版本](http://www.blueantstudio.net/duivision/DuiVisionDemo-20160312.zip)
+下载DuiVision Demo程序：[20200603版本](http://www.blueantstudio.net/duivision/DuiVisionDemo-20200603.zip)
 
-下载DuiVision 浏览器演示程序：[20160312版本](http://www.blueantstudio.net/duivision/DuiVisionExplorer-20160312.zip)
+下载DuiVision 浏览器演示程序：[20161218版本](http://www.blueantstudio.net/duivision/DuiVisionExplorer-20161218.zip)
 
-下载DuiVision IM演示程序：[20160312版本](http://www.blueantstudio.net/duivision/DuiVisionIM-20160312.zip)
+下载DuiVision IM演示程序：[20161218版本](http://www.blueantstudio.net/duivision/DuiVisionIM-20161218.zip)
 
-下载DuiVision 仿360演示程序：[20160312版本](http://www.blueantstudio.net/duivision/DuiVision360Demo-20160312.zip)
+下载DuiVision 仿360演示程序：[20161218版本](http://www.blueantstudio.net/duivision/DuiVision360Demo-20161218.zip)
 
-下载DuiVision exe内嵌界面资源演示程序：[20160312版本](http://www.blueantstudio.net/duivision/DuiVisionZipEmbedDemo-20160312.zip)
+下载DuiVision exe内嵌界面资源演示程序：[20161218版本](http://www.blueantstudio.net/duivision/DuiVisionZipEmbedDemo-20161218.zip)
 
 DuiVision提供了VC向导用于创建应用工程，以前使用向导的安装包进行向导安装，目前推荐的向导安装方法是使用网友蜡笔小辛提供的js安装向导，首先下载github代码库到本地，然后直接点击执行DuiVision\DuiWizard\SetupWizard.js文件，会提示安装哪些VC版本的向导。这种方法安装的向导优点是每次界面库有更新不需要安装新版本的向导，只要更新了github库就可以自动使用最新的向导。注意DuiVision的目录最好不要放在有空格或中文的路径下面，否则向导可能会出现一些异常问题。
 
-下载DuiVision开发手册：[DuiVision开发手册-20160309.pdf](http://www.blueantstudio.net/duivision/DuiVision%E5%BC%80%E5%8F%91%E6%89%8B%E5%86%8C-20160309.pdf)
+下载DuiVision开发手册：[DuiVision开发手册-20200603.pdf](http://www.blueantstudio.net/duivision/DuiVision%E5%BC%80%E5%8F%91%E6%89%8B%E5%86%8C-20200603.pdf)
+
+下载DuiVision控件开发指南：[DuiVision控件开发指南-20190923.pdf](http://www.blueantstudio.net/duivision/DuiVision%E6%8E%A7%E4%BB%B6%E5%BC%80%E5%8F%91%E6%8C%87%E5%8D%97-20190923.pdf)
+
+下载DuiVision Tcl脚本开发手册：[DuiVision Tcl脚本开发手册-20170212.pdf](http://www.blueantstudio.net/duivision/DuiVision%20Tcl%E8%84%9A%E6%9C%AC%E5%BC%80%E5%8F%91%E6%89%8B%E5%86%8C-20170212.pdf)
 
 ## License
 
 (The MIT License)
 
-Copyright (c) 2013-2016 blueant studio. and other contributors
+Copyright (c) 2013-2020 blueant studio. and other contributors
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -108,5 +120,18 @@ DuiVision的基础代码有很多是从下面几个界面库移植的：
 - 黑色泡泡糖: 增加控件的鼠标右键事件处理代码
 - LieberVogel: 修改popuplist的滚动条问题
 - wPgg1es  : edit控件增加背景色和显示滚动条显示功能
+- starrier : 优化文件拖拽等代码
+- Samuel : 修改树控件的一些问题
+- Crystal cat: 提供了自适应DPI虚拟化代码
+- 开始(HammerCheng) : 修改gridctrl删除子控件问题，以及其他若干内容，增加注册Windows消息接口
+- 畅爽,蛋蛋爸 : 修改64位编译问题
+- 随缘(lhc) : 修改DuiEdit控件的焦点问题
+- 山不转水转(shelovemee) : 修改阴影窗口等问题
 
 还有很多提出改进建议和改进方法的人，没有一一列出来，欢迎大家参与这个开源项目，共同完善。
+
+## 捐赠
+支付宝账号：
+
+![支付宝账号](http://www.blueantstudio.net/duivision/alipay_scriptnet.jpg)
+

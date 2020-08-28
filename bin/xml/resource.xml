@@ -8,11 +8,21 @@
 <res type="cfg" name="logFileSize" value="1024" />
 <res type="cfg" name="logFileNumber" value="5" />
 <res type="cfg" name="appMutex" value="MUTEX_DUIVISION_DEMO" />
-<res type="cfg" name="enableDragFile" value="1" />
+<res type="cfg" name="enableDragFile" value="3" />
 <res type="cfg" name="trayDbClickMsg" value="0" />
+<res type="cfg" name="interpDll" value="interp\tcl\bin\TclInterp.dll" />
+<res type="cfg" name="interpDll_d" value="interp\tcl\bin\TclInterp_d.dll" />
+<res type="cfg" name="interpInstance" value="DuiVisionTclScript" />
+<res type="cfg" name="mainScript" value="script\tcl\test_dui_gridctrl.tcl" />
+<res type="cfg" name="dpiAware" value="2" dpix="" dpiy="" />
 
 <!--风格设置-->
+<!--每种风格可以定义名字后面增加1x-4x的四种风格,分别表示DPI为原始的125%,150%,175%,200%四种分辨率下的风格,dpiAware设置为3才生效-->
 <res type="style" name="default" value="" />
+<res type="style" name="default1x" value="default1x" />
+<res type="style" name="default2x" value="default2x" />
+<res type="style" name="default3x" value="default3x" />
+<res type="style" name="default4x" value="default4x" />
 <res type="style" name="qq" value="qq" />
 
 <!--XML资源-->
@@ -33,6 +43,8 @@
 <res type="xml" name="dlg_flashlogin" file="xml\duivision\dlg_flashlogin.xml"  />
 <res type="xml" name="dlg_option" file="xml\duivision\dlg_option.xml"  />
 <res type="xml" name="dlg_notice" file="xml\duivision\dlg_notice.xml"  />
+<res type="xml" name="dlg_ie" file="xml\duivision\dlg_ie.xml"  />
+<res type="xml" name="dlg_wke" file="xml\duivision\dlg_wke.xml"  />
 <res type="xml" name="dlg_skin" file="xml\dlg_skin.xml"  />
 <res type="xml" name="dlg_notifymsg" file="xml\dlg_notifymsg.xml"  />
 <res type="xml" name="dlg_msgbox" file="xml\dlg_msgbox.xml"  />
@@ -155,7 +167,7 @@
 
 <!--字符串资源-->
 <res type="str" lang="zh-cn" name="APP_NAME" value="DuiVision界面演示程序" />
-<res type="str" lang="zh-cn" name="APP_VER" value="2.6.0.1" />
+<res type="str" lang="zh-cn" name="APP_VER" value="2.20.6.3" />
 <res type="str" lang="zh-cn" name="OK" value="确定" />
 <res type="str" lang="zh-cn" name="CANCEL" value="放弃" />
 <res type="str" lang="zh-cn" name="YES" value="是" />

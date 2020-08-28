@@ -7,14 +7,18 @@
 	
 	<gridctrl name="gridctrl_header" pos="20,30,-20,-5" show="1"
 		img-scroll="skin:IDB_SCROLL_V" img-scrollh="skin:IDB_SCROLL_H" img-sep="skin:IDB_LINE_RP"
-		img-check="skin:IDB_CHECK_BOX" img-header="skin:IDB_TOOLBAR_BG" img-colsep="skin:IDB_TAB_SEPERATOR"
+		img-check="skin:IDB_CHECK_BOX"
+		img-header="skin:IDB_TOOLBAR_BG" img-header-sort="skin:IDB_TREE_COLLAPSE"
+		img-colsep="skin:IDB_TAB_SEPERATOR"
 		img-count="12" image="skin:IDB_LIST_IMG"
 		left-pos="70" row-height="50" header-height="30" bk-transparent="10"
-		font-title="big" align-header="center" align-header="middle" crheader="128,32,32"
+		header-check="0"
+		font-title="big" align-header="center" valign-header="middle" crheader="128,32,32"
 		font="default" align="left" valign="middle"
 		crtext="255,64,64,64" crhover="128,0,0" crpush="0,112,235"
-		crtitle="32,32,32" crsep="200,160,160,160" crrowhover="50,128,128,128"
-		down-row="0" column-sep="1" modify-column-width="1" >
+		crtitle="32,32,32" crsep="200,160,160,160" crrowhover="50,128,128,128" crrowcurrent="50,128,128,192"
+		down-row="1" column-sep="1" modify-column-width="1"
+		sort-click="1" >
 		<column title="列1" width="400" />
 		<column title="列2" width="120" />
 		<column title="列3" width="80" align="center" />
@@ -66,8 +70,8 @@
 			<item title="已装：22.9.0.0" content="最新：24.0.1.1" />
 			<item title="29.5M" crtext="0,0,128" />
 			<item>
-				<button name="grid_btn_resume" pos="10,20,27,37" image="skins\qq\softtastmgr_btn_resume.png" showfocus="0" tip="图片按钮1" />
-				<button name="grid_btn_cancel" pos="30,20,47,37" image="skins\qq\softtastmgr_btn_cancel.png" showfocus="0" tip="图片按钮2" />
+				<button name="grid_btn_resume" pos="10,20,27,37" image="skins\qq\softtastmgr_btn_resume.png" showmode="extrude" showfocus="0" tip="图片按钮1" />
+				<button name="grid_btn_cancel" pos="30,20,47,37" image="skins\qq\softtastmgr_btn_cancel.png" showmode="extrude" showfocus="0" tip="图片按钮2" />
 			</item>
 		</row>
 		<row image="skins\icon\ico_business.png" check="0">
@@ -98,7 +102,7 @@
 			<item title="13M" />
 			<item link="一键安装" linkaction="dlg:dlg_login"/>
 		</row>
-		<row image="skins\icon\adrule_rename.png" check="0">
+		<row image="skins\icon\adrule_rename.png" check="-1">
 			<item title="为知笔记" content="1.改进了博客发布功能;2.改进了编写日记功能" font-title="1" />
 			<item title="已装：22.9.0.0" content="最新：24.0.1.1" />
 			<item title="29.5M" crtext="0,0,128" />
@@ -115,8 +119,8 @@
 			<item title="4.9.14.2版本" image="1" />
 			<item title="43.5M" />
 			<item>
-				<button name="grid_btn_resume2" pos="10,20,27,37" image="skins\qq\softtastmgr_btn_resume.png" showfocus="0" tip="图片按钮1" />
-				<button name="grid_btn_cancel2" pos="30,20,47,37" image="skins\qq\softtastmgr_btn_cancel.png" showfocus="0" tip="图片按钮2" />
+				<button name="grid_btn_resume2" pos="10,20,27,37" image="skins\qq\softtastmgr_btn_resume.png" showmode="extrude" showfocus="0" tip="图片按钮1" />
+				<button name="grid_btn_cancel2" pos="30,20,47,37" image="skins\qq\softtastmgr_btn_cancel.png" showmode="extrude" showfocus="0" tip="图片按钮2" />
 			</item>
 		</row>
 		<row image="skin:IDB_ICON_CHECK" check="0">

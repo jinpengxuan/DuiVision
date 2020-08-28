@@ -405,14 +405,17 @@ void CDuiText::DrawControl(CDC &dc, CRect rcUpdate)
 
 		//strFormat.SetFormatFlags( StringFormatFlagsNoWrap | StringFormatFlagsMeasureTrailingSpaces);
 		strFormat.SetFormatFlags( StringFormatFlagsNoClip | StringFormatFlagsMeasureTrailingSpaces);
-		//strFormat.SetTrimming(StringTrimmingEllipsisWord);	// 以单词为单位去尾,略去部分使用省略号
+		if (m_bEllipsisCharacter)
+		{
+			strFormat.SetTrimming(StringTrimmingEllipsisWord);	// 以单词为单位去尾,略去部分使用省略号
+		}
 
 		int nXPos = 0;
 		if(m_pImage != NULL)
 		{
-			graphics.DrawImage(m_pImage, Rect(0, (nHeight - m_sizeImage.cy) / 2, m_sizeImage.cx, m_sizeImage.cy),
+			graphics.DrawImage(m_pImage, Rect(0, (nHeight - m_sizeImageDpi.cy) / 2, m_sizeImageDpi.cx, m_sizeImageDpi.cy),
 				0, 0, m_sizeImage.cx, m_sizeImage.cy, UnitPixel);
-			nXPos += m_sizeImage.cx + 5;
+			nXPos += m_sizeImageDpi.cx + 5;
 		}
 		
 		int nStart = m_strTitle.Find(m_strMark, m_nStart);

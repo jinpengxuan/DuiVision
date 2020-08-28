@@ -58,6 +58,7 @@
 // 系统消息定义
 #define					MSG_TRAY_DBCLICK					1						// 托盘双击消息
 #define					MSG_TRAY_LBUTTONDOWN				2						// 托盘左键单击消息
+#define					MSG_WM_QUERYENDSESSION				WM_QUERYENDSESSION		// 系统的结束对话消息
 
 // 控件消息定义
 #define					MSG_BUTTON_DOWN						1						// 鼠标或键盘在控件按下
@@ -75,6 +76,11 @@
 #define					MSG_KEY_DOWN						13						// 键盘按下事件
 #define					MSG_CONTROL_EVENT					14						// 控件的自定义事件
 #define					MSG_MOUSE_RDBLCLK					15						// 鼠标右键双击
+#define					MSG_CONTROL_SELECT					16						// 控件内的选择事件
+#define					MSG_CONTROL_DELETE					17						// 控件内的删除事件
+#define					MSG_DROP_FILE						18						// 拖拽文件事件
+#define					MSG_FOCUS_CHANGE					19						// 控件的焦点状态变更事件
+#define					MSG_KEY_UP							20						// 键盘放开事件
 
 
 // 进程间消息内容的结构定义
