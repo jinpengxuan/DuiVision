@@ -6,6 +6,9 @@
 #pragma comment(lib, "imm32.lib")		// 自动链接imm库
 #pragma message("Automatically linking with imm32.lib")
 
+#define	SCROLL_V	1	// 垂直滚动条控件ID
+#define	SCROLL_H	2	// 水平滚动条控件ID
+
 // These constants are for backward compatibility. They are the 
 // sizes used for initialization and reset in RichEdit 1.0
 
@@ -437,6 +440,18 @@ BOOL CTxtWinHost::TxShowScrollBar(INT fnBar, BOOL fShow)
         if( pVerticalScrollBar ) pVerticalScrollBar->SetVisible(fShow == TRUE);
         if( pHorizontalScrollBar ) pHorizontalScrollBar->SetVisible(fShow == TRUE);
     }*/
+    CDuiScrollVertical* pScrollV = (CDuiScrollVertical*)m_re->m_pControScrollV;
+    CDuiScrollHorizontal* pScrollH = (CDuiScrollHorizontal*)m_re->m_pControScrollH;
+    if (fnBar == SB_VERT && pScrollV) {
+        pScrollV->SetVisible(fShow == TRUE);
+    }
+    else if (fnBar == SB_HORZ && pScrollH) {
+        pScrollH->SetVisible(fShow == TRUE);
+    }
+    else if (fnBar == SB_BOTH) {
+        if (pScrollV) pScrollV->SetVisible(fShow == TRUE);
+        if (pScrollH) pScrollH->SetVisible(fShow == TRUE);
+    }
     return TRUE;
 }
 
@@ -455,6 +470,18 @@ BOOL CTxtWinHost::TxEnableScrollBar (INT fuSBFlags, INT fuArrowflags)
         m_re->GetVerticalScrollBar()->SetVisible(fuArrowflags != ESB_DISABLE_BOTH);
         m_re->GetHorizontalScrollBar()->SetVisible(fuArrowflags != ESB_DISABLE_BOTH);
     }*/
+    CDuiScrollVertical* pScrollV = (CDuiScrollVertical*)m_re->m_pControScrollV;
+    CDuiScrollHorizontal* pScrollH = (CDuiScrollHorizontal*)m_re->m_pControScrollH;
+    if (fuSBFlags == SB_VERT) {
+        pScrollV->SetVisible(fuArrowflags != ESB_DISABLE_BOTH);
+    }
+    else if (fuSBFlags == SB_HORZ) {
+        pScrollH->SetVisible(fuArrowflags != ESB_DISABLE_BOTH);
+    }
+    else if (fuSBFlags == SB_BOTH) {
+        pScrollV->SetVisible(fuArrowflags != ESB_DISABLE_BOTH);
+        pScrollH->SetVisible(fuArrowflags != ESB_DISABLE_BOTH);
+    }
     return TRUE;
 }
 
@@ -480,6 +507,32 @@ BOOL CTxtWinHost::TxSetScrollRange(INT fnBar, LONG nMinPos, INT nMaxPos, BOOL fR
             pHorizontalScrollBar->SetScrollRange(nMaxPos - nMinPos - rcClient.right + rcClient.left);
         }   
     }*/
+    CDuiScrollVertical* pScrollV = (CDuiScrollVertical*)m_re->m_pControScrollV;
+    CDuiScrollHorizontal* pScrollH = (CDuiScrollHorizontal*)m_re->m_pControScrollH;
+    if (fnBar == SB_VERT && pScrollV)
+    {
+        if (nMaxPos - nMinPos - rcClient.bottom + rcClient.top <= 0)
+        {
+            pScrollV->SetVisible(false);
+        } else
+        if(!fRedraw)
+        {
+            pScrollV->SetVisible(true);
+            // 设置滚动条最大值
+            pScrollV->SetScrollMaxRange(nMaxPos - nMinPos - rcClient.bottom + rcClient.top);
+        }
+    }else
+    if (fnBar == SB_HORZ && pScrollH)
+    {
+        if (nMaxPos - nMinPos - rcClient.right + rcClient.left <= 0)
+        {
+            pScrollH->SetVisible(false);
+        }else
+        {
+            pScrollH->SetVisible(true);
+            pScrollH->SetScrollMaxRange(nMaxPos - nMinPos - rcClient.right + rcClient.left);
+        }
+    }
     return TRUE;
 }
 
@@ -493,6 +546,14 @@ BOOL CTxtWinHost::TxSetScrollPos (INT fnBar, INT nPos, BOOL fRedraw)
     else if( fnBar == SB_HORZ && pHorizontalScrollBar ) {
         pHorizontalScrollBar->SetScrollPos(nPos);
     }*/
+    CDuiScrollVertical* pScrollV = (CDuiScrollVertical*)m_re->m_pControScrollV;
+    CDuiScrollHorizontal* pScrollH = (CDuiScrollHorizontal*)m_re->m_pControScrollH;
+    if (fnBar == SB_VERT && pScrollV) {
+        pScrollV->SetScrollCurrentPos(nPos);
+    }
+    else if (fnBar == SB_HORZ && pScrollH) {
+        pScrollH->SetScrollCurrentPos(nPos);
+    }
     return TRUE;
 }
 
@@ -1324,6 +1385,26 @@ HRESULT CDuiRichEdit::OnAttributeSmallImage(const CString& strValue, BOOL bLoadi
 	return bLoading?S_FALSE:S_OK;
 }
 
+BOOL CDuiRichEdit::IsPassWord()
+{
+    return m_bPassWord;
+}
+
+void CDuiRichEdit::SetPassWord(BOOL bPassWord)
+{
+    m_bPassWord = bPassWord;
+}
+
+BOOL CDuiRichEdit::IsMultiLine()
+{
+    return m_bMultiLine;
+}
+
+void CDuiRichEdit::SetMultiLine(BOOL bMultiLine)
+{
+    m_bMultiLine = bMultiLine;
+}
+
 BOOL CDuiRichEdit::IsWantReturn()
 {
     return m_bWantReturn;
@@ -1342,6 +1423,46 @@ BOOL CDuiRichEdit::IsWantCtrlReturn()
 void CDuiRichEdit::SetWantCtrlReturn(BOOL bWantCtrlReturn)
 {
     m_bWantCtrlReturn = bWantCtrlReturn;
+}
+
+BOOL CDuiRichEdit::IsHScrollBar()
+{
+    return m_bHScrollBar;
+}
+
+void CDuiRichEdit::SetHScrollBar(BOOL bHScrollBar)
+{
+    m_bHScrollBar = bHScrollBar;
+}
+
+BOOL CDuiRichEdit::IsAutoHScroll()
+{
+    return m_bAutoHScroll;
+}
+
+void CDuiRichEdit::SetAutoHScroll(BOOL bAutoHScroll)
+{
+    m_bAutoHScroll = bAutoHScroll;
+}
+
+BOOL CDuiRichEdit::IsVScrollBar()
+{
+    return m_bVScrollBar;
+}
+
+void CDuiRichEdit::SetVScrollBar(BOOL bVScrollBar)
+{
+    m_bVScrollBar = bVScrollBar;
+}
+
+BOOL CDuiRichEdit::IsAutoVScroll()
+{
+    return m_bAutoVScroll;
+}
+
+void CDuiRichEdit::SetAutoVScroll(BOOL bAutoVScroll)
+{
+    m_bAutoVScroll = bAutoVScroll;
 }
 
 BOOL CDuiRichEdit::IsRich()
@@ -1364,6 +1485,16 @@ void CDuiRichEdit::SetReadOnly(BOOL bReadOnly)
 {
     m_bReadOnly = bReadOnly;
     if( m_pTxtWinHost ) m_pTxtWinHost->SetReadOnly(bReadOnly);
+}
+
+BOOL CDuiRichEdit::IsNumber()
+{
+    return m_bNumber;
+}
+
+void CDuiRichEdit::SetNumber(BOOL bNumber)
+{
+    m_bNumber = bNumber;
 }
 
 BOOL CDuiRichEdit::GetWordWrap()
@@ -1503,7 +1634,16 @@ void CDuiRichEdit::SetText(LPCTSTR pstrText)
     m_strTitle = pstrText;
     if( !m_pTxtWinHost ) return;
     SetSel(0, -1);
+#ifndef _UNICODE
+    int nUnicodeLen = MultiByteToWideChar(CP_ACP, 0, pstrText, -1, NULL, 0);
+    wchar_t* pcUnicode = new wchar_t[nUnicodeLen + 1];
+    memset(pcUnicode, 0, nUnicodeLen * 2 + 2);
+    MultiByteToWideChar(CP_ACP, 0, pstrText, -1, pcUnicode, nUnicodeLen);
+    ReplaceSelW(pcUnicode);
+    delete[] pcUnicode;
+#else
     ReplaceSel(pstrText, FALSE);
+#endif
 }
 
 // 从文件中读取rtf内容
@@ -1694,14 +1834,48 @@ void CDuiRichEdit::ScrollCaret()
 int CDuiRichEdit::InsertText(long nInsertAfterChar, LPCTSTR lpstrText, bool bCanUndo)
 {
     int nRet = SetSel(nInsertAfterChar, nInsertAfterChar);
+#ifndef _UNICODE
+    int nUnicodeLen = MultiByteToWideChar(CP_ACP, 0, lpstrText, -1, NULL, 0);
+    wchar_t* pcUnicode = new wchar_t[nUnicodeLen + 1];
+    memset(pcUnicode, 0, nUnicodeLen * 2 + 2);
+    MultiByteToWideChar(CP_ACP, 0, lpstrText, -1, pcUnicode, nUnicodeLen);
+    ReplaceSelW(pcUnicode, bCanUndo);
+    delete[] pcUnicode;
+#else
     ReplaceSel(lpstrText, bCanUndo);
+#endif
     return nRet;
 }
 
-int CDuiRichEdit::AppendText(LPCTSTR lpstrText, bool bCanUndo)
+int CDuiRichEdit::AppendText(LPCTSTR lpstrText, bool bCanUndo, bool bAutoScroll)
 {
+    long nStartChar, nEndChar;
+    GetSel(nStartChar, nEndChar);   // 获取当前光标位置
+    long nViewStartChar = CharFromPos(CPoint(0, 0)); // 获取当前显示区域的第一行第一个位置的字符索引
+    long nCurLine = LineFromChar(nViewStartChar);    // 获取当前行
+
     int nRet = SetSel(-1, -1);
+    
+#ifndef _UNICODE
+    int nUnicodeLen = MultiByteToWideChar(CP_ACP, 0, lpstrText, -1, NULL, 0);
+    wchar_t* pcUnicode = new wchar_t[nUnicodeLen + 1];
+    memset(pcUnicode, 0, nUnicodeLen * 2 + 2);
+    MultiByteToWideChar(CP_ACP, 0, lpstrText, -1, pcUnicode, nUnicodeLen);
+    ReplaceSelW(pcUnicode, bCanUndo);
+    delete[] pcUnicode;
+#else
     ReplaceSel(lpstrText, bCanUndo);
+#endif
+
+    // 如果不自动滚动,则将当前光标位置和显示位置恢复到原来的位置
+    if (!bAutoScroll)
+    {
+        SetSel(nStartChar, nEndChar);   // 光标位置恢复
+        long nNewViewStartChar = CharFromPos(CPoint(0, 0)); // 获取当前显示区域的第一行第一个位置的字符索引
+        long nNewCurLine = LineFromChar(nNewViewStartChar);    // 获取当前行
+        LineScroll(nCurLine - nNewCurLine, 0);  // 当前显示位置通过滚动的方式恢复
+    }
+
     return nRet;
 }
 
@@ -2082,6 +2256,10 @@ void CDuiRichEdit::OnTxNotify(DWORD iNotify, void *pv)
 	}
 }
 
+void CDuiRichEdit::SetScrollPos(SIZE szPos)
+{
+}
+
 void CDuiRichEdit::LineUp()
 {
     TxSendMessage(WM_VSCROLL, SB_LINEUP, 0L, 0);
@@ -2174,6 +2352,27 @@ void CDuiRichEdit::SetControlRect(CRect rc)
 	m_rcText.right -= (3 + m_sizeSmallImage.cx);
 
 	//if( !m_bInited ) DoInit();
+
+    CDuiScrollVertical* pScrollV = (CDuiScrollVertical*)m_pControScrollV;
+    if (pScrollV->GetVisible() || m_bVScrollBar)
+    {
+        pScrollV->SetScrollPageRange(m_rcText.bottom - m_rcText.top);
+        //long nViewStartChar = CharFromPos(CPoint(0, 0)); // 获取当前显示区域的第一行第一个位置的字符索引
+        //long nStartLine = LineFromChar(nViewStartChar);    // 获取当前行
+        //long nViewEndChar = CharFromPos(CPoint(m_rcText.Width(), m_rcText.Height())); // 获取当前显示区域的第一行第一个位置的字符索引
+        //long nEndLine = LineFromChar(nViewEndChar);    // 获取当前行
+        //pScrollV->SetScrollPageRange(nEndLine- nStartLine);
+        CString str;
+        str.Format(_T("SetControlRect:ScrollPageRange=%d"), m_rcText.bottom - m_rcText.top);
+        DuiSystem::LogEvent(LOG_LEVEL_DEBUG, str);
+        // 文字区域留出垂直滚动条的位置
+        m_rcText.right -= m_nScrollWidth;
+        // 设置垂直滚动条的位置
+        CRect rcScroll(m_rcText);
+        rcScroll.left = m_rcText.right;
+        rcScroll.right = m_rc.right;
+        pScrollV->SetRect(rcScroll);
+    }
 
 	if( m_pTxtWinHost )
 	{
@@ -2483,13 +2682,33 @@ BOOL CDuiRichEdit::OnControlLButtonUp(UINT nFlags, CPoint point)
 	return buttonState != m_buttonState || editState != m_EditState;
 }
 
+// 垂直滚动事件处理
+BOOL CDuiRichEdit::OnControlScroll(BOOL bVertical, UINT nFlags, CPoint point)
+{
+    // 更新滚动条,并刷新界面
+    CDuiScrollVertical* pScrollV = (CDuiScrollVertical*)m_pControScrollV;
+    if (pScrollV->ScrollRow((nFlags == SB_LINEDOWN) ? 1 : -1))
+    {
+        LineScroll((nFlags == SB_LINEDOWN) ? 1 : -1, 0);
+        UpdateControl(true);
+    }
+
+    return true;
+}
+
 // 键盘事件处理
 BOOL CDuiRichEdit::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 {
-/*	// 如果是回车键,则转换为字符事件传递给原生控件
+    if (!IsFocusControl())
+    {
+        return false;
+    }
+
+/*
+	// 如果是回车键,则转换为字符事件传递给原生控件
 	if((nChar == VK_RETURN) && m_pTxtWinHost)
 	{
-		m_pTxtWinHost->GetTextServices()->TxSendMessage(WM_CHAR, VK_RETURN, nFlags, NULL);
+		TxSendMessage(WM_CHAR, VK_RETURN, nFlags, NULL);
 		return true;
 	}
 
@@ -2518,22 +2737,18 @@ BOOL CDuiRichEdit::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
         }else
         {
             nChar=MAKEWORD(nChar,m_byDbcsLeadByte);
-            m_pTxtWinHost->GetTextServices()->TxSendMessage(WM_IME_CHAR,nChar,0,NULL);
+            TxSendMessage(WM_IME_CHAR,nChar,0,NULL);
             m_byDbcsLeadByte=0;
             return true;
         }
 #endif//_UNICODE
         break;
     }
-    m_pTxtWinHost->GetTextServices()->TxSendMessage(WM_CHAR, nChar, nFlags, NULL);
+    TxSendMessage(WM_CHAR, nChar, nFlags, NULL);
 
 	return true;
 */
-	if(!IsFocusControl())
-	{
-		return false;
-	}
-
+	
 	bool handled = true;
 	unsigned int virtualKeyCode = nChar;
     unsigned int flags = nFlags;
@@ -2556,12 +2771,12 @@ BOOL CDuiRichEdit::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 			}	
 		}
 	}	
-	if(nChar >= 0x70  && nChar <= 0x7F  )
+	if(nChar >= 0x70 && nChar <= 0x7F)
 	{
 		LRESULT lResult = true;
 		TxSendMessage(WM_KEYDOWN, virtualKeyCode, flags, &lResult);
 		handled = true;
-		if( nChar == 0x74 )
+		if(nChar == 0x74)
 		{
 			MSG msg;
 			msg.hwnd = m_hWnd;
@@ -2581,18 +2796,47 @@ BOOL CDuiRichEdit::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	
 	if(!bShiftState)
 	{
-		if( !GetKeyState(VK_CAPITAL)  )
+		if(!GetKeyState(VK_CAPITAL))
 		{
 			if((nChar >= 'A') && (nChar <= 'Z'))
 				virtualKeyCode = tolower(nChar);
 		}
 		if(nChar != VK_SHIFT)
 		{
-			if( nChar > 0x80 )
-				return 0;
+            if (nChar > 0x80)
+            {
+                // 大写未打开状态的特殊键盘字符处理(参见WinUser.h中的定义)
+                if (nChar == VK_OEM_NEC_EQUAL)
+                    virtualKeyCode = '=';
+                else if (nChar == VK_OEM_1)
+                    virtualKeyCode = ';';
+                else if (nChar == VK_OEM_PLUS)
+                    virtualKeyCode = '=';
+                else if (nChar == VK_OEM_COMMA)
+                    virtualKeyCode = ',';
+                else if (nChar == VK_OEM_MINUS)
+                    virtualKeyCode = '-';
+                else if (nChar == VK_OEM_PERIOD)
+                    virtualKeyCode = '.';
+                else if (nChar == VK_OEM_2)
+                    virtualKeyCode = '/';
+                else if (nChar == VK_OEM_3)
+                    virtualKeyCode = '`';
+                else if (nChar == VK_OEM_4)
+                    virtualKeyCode = '[';
+                else if (nChar == VK_OEM_5)
+                    virtualKeyCode = '\\';
+                else if (nChar == VK_OEM_6)
+                    virtualKeyCode = ']';
+                else if (nChar == VK_OEM_7)
+                    virtualKeyCode = '\'';
+                else
+                    return false;
+            }
 		}
 	}else
-	{	
+	{
+        // shift状态的字符转换
 		if(nChar != VK_SHIFT)
 		{
 			//wParam = wParam & 0x7F;//`~
@@ -2633,11 +2877,54 @@ BOOL CDuiRichEdit::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 				virtualKeyCode = '?';
 			else if(nChar == '`')
 				virtualKeyCode = '~';
-			else if(nChar > 0x80)
-				return 0;
+            else if (nChar > 0x80)
+            {
+                // 大写打开状态的特殊键盘字符处理(参见WinUser.h中的定义)
+                if (nChar == VK_OEM_NEC_EQUAL)
+                    virtualKeyCode = '=';
+                else if (nChar == VK_OEM_1)
+                    virtualKeyCode = ':';
+                else if (nChar == VK_OEM_PLUS)
+                    virtualKeyCode = '+';
+                else if (nChar == VK_OEM_COMMA)
+                    virtualKeyCode = '<';
+                else if (nChar == VK_OEM_MINUS)
+                    virtualKeyCode = '_';
+                else if (nChar == VK_OEM_PERIOD)
+                    virtualKeyCode = '>';
+                else if (nChar == VK_OEM_2)
+                    virtualKeyCode = '?';
+                else if (nChar == VK_OEM_3)
+                    virtualKeyCode = '~';
+                else if (nChar == VK_OEM_4)
+                    virtualKeyCode = '{';
+                else if (nChar == VK_OEM_5)
+                    virtualKeyCode = '|';
+                else if (nChar == VK_OEM_6)
+                    virtualKeyCode = '}';
+                else if (nChar == VK_OEM_7)
+                    virtualKeyCode = '"';
+                else
+                    return false;
+            }
 		}
 	}
 
+    if (nChar == VK_RETURN)
+    {
+        // 判断回车键
+        if (m_bWantReturn || (m_bWantCtrlReturn && GetKeyState(VK_CONTROL)))
+        {
+            // 回车键转换为换行符
+            //virtualKeyCode = '\n';
+            // TextService没有响应回车,原因不明,暂时在最后添加一个换行符模拟回车换行
+            SetSel(-1,-1);
+            ReplaceSel(_T("\n"), FALSE);
+        }else
+        {
+            return handled;
+        }
+    }else
 	if((nChar < '0') && (nChar != ' '))
 	{
 		return handled;
@@ -2647,6 +2934,50 @@ BOOL CDuiRichEdit::OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags)
 	handled = true;
 
 	return handled;
+}
+
+// 消息响应
+LRESULT CDuiRichEdit::OnMessage(UINT uID, UINT Msg, WPARAM wParam, LPARAM lParam)
+{
+	if((uID == SCROLL_V) && (Msg == MSG_SCROLL_CHANGE) && (lParam == 1))
+	{
+		// 如果是垂直滚动条的位置变更事件(lParam为1表示鼠标已放开),则更新位置
+        // 1.计算滚动条当前位置和最大位置的占比
+        // 2.根据当前显示区域第一行第一个字符的行号和总行数,计算滚动的行数
+        CDuiScrollVertical* pScrollV = (CDuiScrollVertical*)m_pControScrollV;
+        long nScrollCurPos = wParam;    // 滚动条当前位置
+        long nScrollMaxRange = pScrollV->GetScrollMaxRange();   // 滚动条最大值
+
+        long nViewHeight = m_rc.bottom - m_rc.top;
+        //long nStartChar, nEndChar;
+        //GetSel(nStartChar, nEndChar);   // 获取当前光标位置
+        long nViewStartChar = CharFromPos(CPoint(0,0)); // 获取当前显示区域的第一行第一个位置的字符索引
+        long nCurLine = LineFromChar(nViewStartChar);    // 获取当前行
+        long nTotalLine = GetLineCount();    // 获取总行数
+
+        // 计算滚动条位置的行号(运算过程中必须用long long类型,long类型超过10位之后会越界导致运算结果不准)
+        long nTargetLine = (long long)nScrollCurPos * (long long)nTotalLine / (long long)(nScrollMaxRange + nViewHeight);
+        long nScroll = nTargetLine - nCurLine;   // 计算需要滚动的行数
+        if (nTargetLine == 0)
+        {
+            // 如果滚动到第1行,需要再多滚动一些,否则可能到不了第1行
+            nScroll -= 100;
+        }
+        LineScroll(nScroll, 0);
+
+        //CString str;
+        //str.Format("nScrollCurPos=%d,nScrollMaxRange=%d,nViewStartChar=%d,nCurLine=%d,nTotalLine=%d,nTargetLine=%d,nScroll=%d",
+        //    nScrollCurPos, nScrollMaxRange, nViewStartChar, nCurLine, nTotalLine, nTargetLine, nScroll);
+        //DuiSystem::LogEvent(LOG_LEVEL_DEBUG, str);
+
+        // 必须将光标位置设置到新的位置,否则不同步
+        nViewStartChar = CharFromPos(CPoint(0, 0)); // 获取当前显示区域的第一行第一个位置的字符索引
+        SetSel(nViewStartChar, nViewStartChar);   // 设置光标位置到新的位置
+
+        UpdateControl(true);
+	}
+
+	return __super::OnMessage(uID, Msg, wParam, lParam); 
 }
 
 void CDuiRichEdit::DrawControl(CDC &dc, CRect rcUpdate)

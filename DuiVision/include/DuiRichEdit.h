@@ -23,14 +23,28 @@ public:
 	bool SetSmallBitmap(CString strImage);
 	HRESULT OnAttributeSmallImage(const CString& strValue, BOOL bLoading);
 
+    BOOL IsPassWord();
+    void SetPassWord(BOOL bPassWord = true);
+    BOOL IsMultiLine();
+    void SetMultiLine(BOOL bMultiLine = true);
     BOOL IsWantReturn();
     void SetWantReturn(BOOL bWantReturn = true);
     BOOL IsWantCtrlReturn();
     void SetWantCtrlReturn(BOOL bWantCtrlReturn = true);
+    BOOL IsHScrollBar();
+    void SetHScrollBar(BOOL bHScrollBar = true);
+    BOOL IsAutoHScroll();
+    void SetAutoHScroll(BOOL bAutoHScroll = true);
+    BOOL IsVScrollBar();
+    void SetVScrollBar(BOOL bVScrollBar = true);
+    BOOL IsAutoVScroll();
+    void SetAutoVScroll(BOOL bAutoVScroll = true);
     BOOL IsRich();
     void SetRich(BOOL bRich = true);
     BOOL IsReadOnly();
     void SetReadOnly(BOOL bReadOnly = true);
+    BOOL IsNumber();
+    void SetNumber(BOOL bNumber = true);
     BOOL GetWordWrap();
     void SetWordWrap(BOOL bWordWrap = true);
 	HFONT GetDefaultFont();
@@ -69,7 +83,7 @@ public:
     void HideSelection(bool bHide = true, bool bChangeStyle = false);
     void ScrollCaret();
     int InsertText(long nInsertAfterChar, LPCTSTR lpstrText, bool bCanUndo = false);
-    int AppendText(LPCTSTR lpstrText, bool bCanUndo = false);
+    int AppendText(LPCTSTR lpstrText, bool bCanUndo = false, bool bAutoScroll = true);
     DWORD GetDefaultCharFormat(CHARFORMAT2 &cf) const;
     bool SetDefaultCharFormat(CHARFORMAT2 &cf);
     DWORD GetSelectionCharFormat(CHARFORMAT2 &cf) const;
@@ -137,9 +151,13 @@ protected:
 	virtual BOOL OnControlMouseMove(UINT nFlags, CPoint point);
 	virtual BOOL OnControlLButtonDown(UINT nFlags, CPoint point);
 	virtual BOOL OnControlLButtonUp(UINT nFlags, CPoint point);
+    virtual BOOL OnControlScroll(BOOL bVertical, UINT nFlags, CPoint point);
 	virtual BOOL OnControlKeyDown(UINT nChar, UINT nRepCnt, UINT nFlags);
 	virtual	void SetControlDisable(BOOL bIsDisable);
 	virtual void DrawControl(CDC &dc, CRect rcUpdate);
+
+    // 消息响应
+    virtual LRESULT OnMessage(UINT uID, UINT Msg, WPARAM wParam, LPARAM lParam);
 
 protected:
 	Image*			m_pLeftImage;		// 左侧小图片

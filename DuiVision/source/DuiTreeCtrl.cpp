@@ -1449,10 +1449,10 @@ void CDuiTreeCtrl::RefreshNodeRows()
 		if(m_pImageToggle != NULL)
 		{
 			int nNodeLevel = GetNodeLevel(rowInfoTemp.hNode);
-			nXPos += (nNodeLevel * m_sizeToggle.cx);
+			nXPos += (nNodeLevel * m_sizeToggleDpi.cx);
 			if(HaveChildNode(rowInfoTemp.hNode))
 			{
-				nXPos += m_sizeToggle.cx;
+				nXPos += m_sizeToggleDpi.cx;
 			}
 		}
 
@@ -1480,7 +1480,7 @@ void CDuiTreeCtrl::RefreshNodeRows()
 			if((j == 0) && (m_pImageToggle != NULL) && HaveChildNode(rowInfoTemp.hNode))
 			{
 				int nNodeLevel = GetNodeLevel(rowInfoTemp.hNode);
-				itemInfo.rcItem.left = (nNodeLevel+1) * m_sizeToggle.cx + rowInfoTemp.rcRow.left;
+				itemInfo.rcItem.left = (nNodeLevel+1) * m_sizeToggleDpi.cx + rowInfoTemp.rcRow.left;
 			}
 		}
 
@@ -1492,6 +1492,7 @@ void CDuiTreeCtrl::RefreshNodeRows()
 	// 需要的总高度大于显示区高度才会显示滚动条
 	m_pControScrollV->SetVisible((nVisibleRows * m_nRowHeight) > m_rc.Height());
 	((CDuiScrollVertical*)m_pControScrollV)->SetScrollMaxRange(nVisibleRows * m_nRowHeight);
+	((CDuiScrollVertical*)m_pControScrollV)->SetScrollRowRange(m_nRowHeight);
 
 	UpdateControl(true);
 }
@@ -1629,8 +1630,8 @@ BOOL CDuiTreeCtrl::PtInRowCollapse(CPoint point, TreeNodeInfo& rowInfo)
 	{
 		int nNodeLevel = GetNodeLevel(rowInfo.hNode);
 		CRect rc = rowInfo.rcRow;
-		rc.left = nNodeLevel * m_sizeToggle.cx;
-		rc.right = rc.left + m_sizeToggle.cx;
+		rc.left = nNodeLevel * m_sizeToggleDpi.cx;
+		rc.right = rc.left + m_sizeToggleDpi.cx;
 		rc.OffsetRect(m_rc.left - m_nVirtualLeft, m_rc.top-m_nVirtualTop);
 		if(rc.PtInRect(point))
 		{
@@ -2217,7 +2218,7 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 				if(m_pImageToggle != NULL)
 				{
 					int nNodeLevel = GetNodeLevel(rowInfo.hNode);
-					nXPos += (nNodeLevel * m_sizeToggle.cx);
+					nXPos += (nNodeLevel * m_sizeToggleDpi.cx);
 					// 节点存在子节点，或者是顶层节点的情况下，画缩放图片
 					if(HaveChildNode(rowInfo.hNode) || (GetParentNode(rowInfo.hNode) == NULL))
 					{
@@ -2372,6 +2373,7 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 					}
 
 					// 画单元格标题或链接内容
+					BOOL bUseItemBrush = FALSE;	// 是否使用单元格或行的颜色(即使设置了使用标题字体,颜色也会使用单元格或行设置的)
 					SolidBrush solidBrushItem(m_clrText);
 					if((m_nHoverRow == i) && (m_clrTextHover.GetValue() != Color(0, 0, 0, 0).GetValue()))	// 设置了鼠标移动颜色,则使用
 					{
@@ -2384,10 +2386,12 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 					if(itemInfo.clrText.GetValue() != Color(0, 0, 0, 0).GetValue())	// 设置了单元格颜色,则使用
 					{
 						solidBrushItem.SetColor(itemInfo.clrText);
+						bUseItemBrush = TRUE;
 					}else
 					if(rowInfo.clrText.GetValue() != Color(0, 0, 0, 0).GetValue())	// 设置了行颜色,则使用
 					{
 						solidBrushItem.SetColor(rowInfo.clrText);
+						bUseItemBrush = TRUE;
 					}
 					CString strItemTitle = itemInfo.strTitle;
 					// 计算是否需要显示tip
@@ -2407,7 +2411,7 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 					// 根据bUseTitleFont决定用标题字体还是普通字体
 					BSTR bsItemTitle = strItemTitle.AllocSysString();
 					graphics.DrawString(bsItemTitle, (INT)wcslen(bsItemTitle),
-						itemInfo.bUseTitleFont ? &fontTitle : &font, rect, &strFormat, itemInfo.bUseTitleFont ? &solidBrushT : &solidBrushItem);
+						itemInfo.bUseTitleFont ? &fontTitle : &font, rect, &strFormat, (itemInfo.bUseTitleFont && !bUseItemBrush) ? &solidBrushT : &solidBrushItem);
 					::SysFreeString(bsItemTitle);
 
 					// 画单元格内容
@@ -2486,11 +2490,11 @@ void CDuiTreeCtrl::DrawControl(CDC &dc, CRect rcUpdate)
 					nFirstRowCount++;
 				}else
 				{
-					nRowIndex++;
 					if(nRowIndex < nViewRowCount)
 					{
 						bHideControl = FALSE;
 					}
+					nRowIndex++;
 				}
 
 				// 显示区域之外的行的控件都隐藏
